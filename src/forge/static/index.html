@@ -409,6 +409,7 @@ $("clearKeyBtn").onclick = async ()=>{
   const r = await api("/admin/v1/api-key",{method:"DELETE",body:{password:pw}});
   if (r.status === 200){
     $("apiKey").value = "";
+    $("apiKey").type = "password";
     saveCfg();
   } else {
     alert((r.data&&r.data.detail) || "Failed to clear key ("+r.status+")");
@@ -498,7 +499,7 @@ $("modalSave").onclick = saveModal;
 $("modelModal").onclick = (e)=>{ if (e.target===$("modelModal")) closeModal(); };
 
 // ---- Init ---- //
-$("saveCfg").onclick = ()=>{ saveCfg(); refreshAll(); };
+$("saveCfg").onclick = ()=>{ saveCfg(); $("saveCfg").textContent="Saved!"; $("saveCfg").style.borderColor="var(--ok)"; setTimeout(()=>{ $("saveCfg").textContent="Save"; $("saveCfg").style.borderColor=""; }, 1500); refreshAll(); };
 loadCfg(); saveCfg();
 
 async function refreshAll(){

@@ -60,6 +60,7 @@ class LoadFailed(Exception):
 def _launch_args(manifest: Manifest, registry: Registry, cfg: ForgeConfig) -> list:
     """Build the exact `vllm serve ...` argv (§6.3 launch contract)."""
     if manifest.source.file:
+        # For GGUF and other single-file models, pass the file path directly
         target = str(registry.weights_dir(manifest) / manifest.source.file)
     else:
         target = str(registry.weights_dir(manifest))

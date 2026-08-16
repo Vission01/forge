@@ -277,6 +277,10 @@ If you get OOM errors:
 2. Lower `max-model-len`
 3. Lower `gpu-memory-utilization`
 
+### GGUF Models
+
+vLLM has limited GGUF support. **GGUF-only repos** (like `unsloth/Qwen3.8-27B-GGUF`) that contain only the `.gguf` file without a `config.json` and tokenizer files **will not work** with vLLM. Use NVFP4, AWQ, or other HuggingFace-format quantizations instead. For GGUF models, use Ollama/llama.cpp.
+
 ---
 
 ## API Endpoints
