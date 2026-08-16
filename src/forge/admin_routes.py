@@ -151,13 +151,15 @@ async def post_activate(request: Request):
 
     import logging as _lg
     _lg.getLogger("forge.admin").info("activate accepted alias=%s", alias)
-    try:
-        await lc.ensure_ready(alias)
-    except LookupError:
-        raise HTTPException(status_code=404, detail=f"unknown alias {alias!r}")
-    except Exception as exc:
-        _lg.getLogger("forge.admin").error("activate load failed alias=%s: %s", alias, exc)
-        raise HTTPException(status_code=503, detail=f"model load failed: {exc}")
+    # Non-blocking: launch loading in background, return 202 immediately.
+    # The dashboard polls /admin/v1/status to track progress.
+    import asyncio
+    async def _bg_load():
+        try:
+            await lc.ensure_ready(alias)
+        except Exception as exc:
+            _lg.getLogger("forge.admin").error("activate load failed alias=%s: %s", alias, exc)
+    asyncio.create_task(_bg_load())
     return JSONResponse(status_code=202, content={"state": lc.state, "alias": alias})
 
 
