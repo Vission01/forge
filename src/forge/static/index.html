@@ -83,6 +83,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--accent)}
 <header>
   <h1>FORGE</h1>
   <span class="sub">vLLM gateway &middot; manage models without touching the CLI</span>
+  <span id="versionInfo" class="hint" style="margin-left:auto"></span>
 </header>
 <main>
   <div id="banner" class="banner"></div>
@@ -498,12 +499,31 @@ $("modalCancel").onclick = closeModal;
 $("modalSave").onclick = saveModal;
 $("modelModal").onclick = (e)=>{ if (e.target===$("modelModal")) closeModal(); };
 
+// ---- Version check ---- //
+let _lastVersionCheck = 0;
+async function refreshVersion(){
+  const now = Date.now();
+  if (now - _lastVersionCheck < 60000) return; // check every 60s max
+  _lastVersionCheck = now;
+  try {
+    const r = await api("/admin/v1/version");
+    if (r.status !== 200) return;
+    const d = r.data || {};
+    const el = $("versionInfo");
+    if (d.update_available){
+      el.innerHTML = "vLLM <code>"+esc(d.vllm_current||"?")+"</code> &mdash; <span style='color:var(--warn);font-weight:600'>update available: "+esc(d.vllm_latest||"?")+"</span>";
+    } else {
+      el.innerHTML = "vLLM <code>"+esc(d.vllm_current||"?")+"</code>";
+    }
+  } catch(e){}
+}
+
 // ---- Init ---- //
 $("saveCfg").onclick = ()=>{ saveCfg(); $("saveCfg").textContent="Saved!"; $("saveCfg").style.borderColor="var(--ok)"; setTimeout(()=>{ $("saveCfg").textContent="Save"; $("saveCfg").style.borderColor=""; }, 1500); refreshAll(); };
 loadCfg(); saveCfg();
 
 async function refreshAll(){
-  await Promise.allSettled([refreshDashboard(), refreshRegistry()]);
+  await Promise.allSettled([refreshDashboard(), refreshRegistry(), refreshVersion()]);
 }
 refreshAll();
 setInterval(refreshAll, 3000);

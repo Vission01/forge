@@ -111,6 +111,32 @@ async def get_status(request: Request):
     return JSONResponse(status_code=200, content=lc.status())
 
 
+@router.get("/admin/v1/version")
+async def get_version(request: Request):
+    """Return current and latest vLLM version."""
+    import httpx as _httpx
+    current = None
+    try:
+        import vllm
+        current = vllm.__version__
+    except Exception:
+        pass
+    latest = None
+    try:
+        async with _httpx.AsyncClient(timeout=5) as c:
+            r = await c.get("https://pypi.org/pypi/vllm/json")
+            if r.status_code == 200:
+                latest = r.json().get("info", {}).get("version")
+    except Exception:
+        pass
+    update_available = bool(current and latest and current != latest)
+    return JSONResponse(status_code=200, content={
+        "vllm_current": current,
+        "vllm_latest": latest,
+        "update_available": update_available,
+    })
+
+
 @router.post("/admin/v1/api-key")
 async def set_api_key(request: Request):
     """Generate or set an API key at runtime. Requires master password.
