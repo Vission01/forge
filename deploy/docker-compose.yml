@@ -14,11 +14,14 @@ services:
       # - "18080:18080"      # uncomment to reach the internal vLLM directly
     env_file:
       - path: .env
-        required: false     # no .env => FORGE_API_KEY unset => admin routes open
+        required: false     # no .env => no auth, admin routes open
     environment:
       # First vLLM load on a new GPU compiles CUDA kernels — needs extra time.
       # Can be reduced to 600 after the first successful model load.
       FORGE_STARTUP_TIMEOUT_SECONDS: "1200"
+      # Master password — required to generate/clear API keys from the dashboard.
+      # Set this to enable key management. Without it, Generate/Clear buttons are disabled.
+      # FORGE_MASTER_PASSWORD: "change-me-to-a-strong-password"
     volumes:
       - forge-data:/data     # registry, state, model weights (survives restarts)
     restart: unless-stopped

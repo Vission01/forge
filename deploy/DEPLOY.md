@@ -34,10 +34,13 @@ Verify with: `docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu24.04 nvi
 mkdir forge && cd forge
 curl -O https://raw.githubusercontent.com/Vission01/forge/main/deploy/docker-compose.yml
 
-# 2. Start (pulls the pre-built image automatically)
+# 2. (Recommended) Set a master password for API key management
+echo 'FORGE_MASTER_PASSWORD=choose-a-strong-password' > .env
+
+# 3. Start (pulls the pre-built image automatically)
 docker compose up -d
 
-# 3. Verify
+# 4. Verify
 curl http://localhost:9090/health
 # → {"status":"ok","state":"IDLE","active_alias":null}
 ```
@@ -55,7 +58,7 @@ The dashboard is available at `http://<server-ip>:9090/`
 
 ## Register a Model
 
-Create a model manifest via the admin API:
+You can register models via the **dashboard UI** (click **+ Add Model**) or via the API:
 
 ```bash
 curl -X POST http://localhost:9090/admin/v1/registry \
@@ -106,7 +109,7 @@ curl -X POST http://localhost:9090/admin/v1/activate \
 curl -X POST http://localhost:9090/admin/v1/unload
 ```
 
-You can also use the **Activate / Unload** toggle button in the dashboard.
+You can also use the **Activate / Unload** toggle button in the dashboard. Activation is non-blocking — the API returns immediately and the dashboard shows real-time progress (DOWNLOADING → LOADING → READY).
 
 ---
 
@@ -134,7 +137,7 @@ curl -X POST http://localhost:9090/v1/chat/completions \
    ```
 2. In Open WebUI → Admin → Settings → Connections → **OpenAI API**:
    - **Base URL:** `http://forge:9090/v1`
-   - **API Key:** any string (e.g. `sk-forge`) — Forge doesn't check it unless `FORGE_API_KEY` is set
+   - **API Key:** your Forge API key (or any string if no key is set)
 
 ### n8n
 
@@ -144,7 +147,7 @@ curl -X POST http://localhost:9090/v1/chat/completions \
    ```
 2. In n8n, create an **OpenAI API** credential:
    - **Base URL:** `http://forge:9090/v1`
-   - **API Key:** any non-empty string
+   - **API Key:** your Forge API key (or any non-empty string)
    - **Model:** `qwen3.8-27b`
 
 ### Any OpenAI-compatible client
@@ -184,14 +187,51 @@ Qwen3.8 is a reasoning model that outputs `<think>...</think>` blocks by default
 
 ## Security
 
-- **Admin API** (`/admin/v1/*`) is **unauthenticated by default**. Set `FORGE_API_KEY` in a `.env` file to require a Bearer token.
-- **CORS** is `allow_origins=["*"]` — restrict in production if Forge is exposed to the internet.
-- The `/v1/*` inference endpoints do **not** check `FORGE_API_KEY` — they pass through whatever auth the client sends.
+### Overview
 
-### Setting an Admin Key
+- **Admin API** (`/admin/v1/*`) is **unauthenticated by default**. Set an API key to require a Bearer token.
+- **API key management** (generate/clear) requires a **master password** (`FORGE_MASTER_PASSWORD`). Without it, the Generate/Clear buttons in the dashboard are disabled and the endpoints return 403.
+- **CORS** is `allow_origins=["*"]` — restrict in production if Forge is exposed to the internet.
+- The `/v1/*` inference endpoints do **not** check the API key — they pass through whatever auth the client sends.
+
+### Setting a Master Password
+
+The master password protects API key generation and clearing. Set it in your `.env` file or as an environment variable:
 
 ```bash
-echo 'FORGE_API_KEY=your-secret-key-here' > .env
+echo 'FORGE_MASTER_PASSWORD=your-strong-password' > .env
+docker compose restart
+```
+
+### Generating an API Key
+
+**Via the dashboard:** Click the **Generate** button next to the API Key field → enter the master password → a new key is generated and shown for 10 seconds, then masked.
+
+**Via the API:**
+```bash
+curl -X POST http://localhost:9090/admin/v1/api-key \
+  -H "Content-Type: application/json" \
+  -d '{"password": "your-master-password"}'
+# → {"api_key": "forge-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+```
+
+### Clearing the API Key
+
+**Via the dashboard:** Click the **Clear** button → enter the master password → admin endpoints become open again.
+
+**Via the API:**
+```bash
+curl -X DELETE http://localhost:9090/admin/v1/api-key \
+  -H "Content-Type: application/json" \
+  -d '{"password": "your-master-password"}'
+```
+
+### Setting an API Key via Environment
+
+You can also set the key directly without a master password:
+
+```bash
+echo 'FORGE_API_KEY=your-secret-key-here' >> .env
 docker compose restart
 ```
 
@@ -214,8 +254,9 @@ docker compose restart
 | `FORGE_PORT` | `9090` | API + dashboard port |
 | `FORGE_INTERNAL_PORT` | `18080` | vLLM subprocess port (internal) |
 | `FORGE_DATA_DIR` | `/data` | Registry, state, model weights |
-| `FORGE_API_KEY` | *(unset)* | Admin API bearer token |
-| `FORGE_HF_TOKEN` | *(unset)* | HuggingFace auth token |
+| `FORGE_API_KEY` | *(unset)* | API key — required for `/admin/v1/*` when set |
+| `FORGE_MASTER_PASSWORD` | *(unset)* | Master password — required to generate/clear API keys from dashboard |
+| `FORGE_HF_TOKEN` | *(unset)* | HuggingFace auth token for gated models |
 | `FORGE_STARTUP_TIMEOUT_SECONDS` | `600` | Max wait for vLLM to start (increase for first load) |
 | `FORGE_HEALTH_POLL_INTERVAL_SECONDS` | `2` | Health check polling interval |
 | `FORGE_LOG_LEVEL` | `info` | Log level: debug, info, warning, error |
@@ -248,11 +289,14 @@ If you get OOM errors:
 | POST | `/v1/chat/completions` | Chat inference (streaming + non-streaming) |
 | POST | `/v1/completions` | Text completion |
 | POST | `/v1/embeddings` | Embeddings |
-| GET | `/admin/v1/status` | Current state, active model, VRAM |
-| GET | `/admin/v1/stats` | Uptime, request counts, VRAM usage |
+| GET | `/admin/v1/status` | Current state, active model, download progress |
+| GET | `/admin/v1/stats` | Uptime, request counts, GPU metrics |
 | GET | `/admin/v1/registry` | List all manifests |
 | POST | `/admin/v1/registry` | Create a manifest |
+| PATCH | `/admin/v1/registry/{alias}` | Update manifest fields (idle timeout) |
 | DELETE | `/admin/v1/registry/{alias}` | Delete a manifest |
-| POST | `/admin/v1/activate` | Load a model into GPU |
+| POST | `/admin/v1/activate` | Load a model into GPU (non-blocking) |
 | POST | `/admin/v1/unload` | Unload model from GPU |
+| POST | `/admin/v1/api-key` | Generate/set API key (requires master password) |
+| DELETE | `/admin/v1/api-key` | Clear API key (requires master password) |
 | POST | `/admin/v1/pull` | Download weights (streamed ndjson progress) |
