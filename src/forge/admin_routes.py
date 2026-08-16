@@ -81,6 +81,30 @@ async def delete_registry(alias: str, request: Request):
     return None
 
 
+@router.patch("/admin/v1/registry/{alias}")
+async def patch_registry(alias: str, request: Request):
+    """Update mutable fields of an existing manifest (currently: idle_timeout_seconds)."""
+    _, reg, _, _ = _st(request)
+    manifest = reg.get(alias)
+    if manifest is None:
+        raise HTTPException(status_code=404, detail=f"unknown alias {alias!r}")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="body must be JSON")
+    changed = False
+    if "idle_timeout_seconds" in body:
+        val = body["idle_timeout_seconds"]
+        if not isinstance(val, int) or val < 30:
+            raise HTTPException(status_code=400, detail="idle_timeout_seconds must be an integer >= 30")
+        manifest.idle_timeout_seconds = val
+        changed = True
+    if not changed:
+        raise HTTPException(status_code=400, detail="no supported fields to update (supported: idle_timeout_seconds)")
+    reg.save(manifest)
+    return JSONResponse(status_code=200, content=manifest.model_dump())
+
+
 @router.get("/admin/v1/status")
 async def get_status(request: Request):
     _, _, lc, _ = _st(request)

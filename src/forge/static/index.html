@@ -274,7 +274,7 @@ async function refreshRegistry(){
       "<td><code>"+esc(m.served_model_name)+"</code></td>"+
       "<td class='mono'>"+esc(src)+"</td>"+
       "<td>"+(m.downloaded?'<span class="dot ok"></span>yes':'<span class="dot miss"></span>no')+"</td>"+
-      "<td>"+(m.idle_timeout_seconds/60)+" min</td>"+
+      "<td><input type='number' min='1' step='1' data-alias='"+esc(m.alias)+"' data-field='idle' value='"+(m.idle_timeout_seconds/60)+"' style='width:60px;text-align:center'> min</td>"+
       "<td class='actions'>"+
         actionBtn+
         "<button data-act='pull' data-alias='"+esc(m.alias)+"'>Pull</button>"+
@@ -282,6 +282,18 @@ async function refreshRegistry(){
       "</td>";
     body.appendChild(tr);
   }
+  // Idle timeout editing
+  body.querySelectorAll("input[data-field='idle']").forEach(inp=>{
+    inp.onchange = async ()=>{
+      const alias = inp.dataset.alias;
+      const mins = parseInt(inp.value, 10);
+      if (isNaN(mins) || mins < 1){ inp.style.borderColor="var(--err)"; return; }
+      const secs = mins * 60;
+      const r = await api("/admin/v1/registry/"+encodeURIComponent(alias),{method:"PATCH",body:{idle_timeout_seconds:secs}});
+      if (r.status === 200){ inp.style.borderColor="var(--ok)"; setTimeout(()=>{ inp.style.borderColor=""; }, 1500); }
+      else { inp.style.borderColor="var(--err)"; }
+    };
+  });
   body.querySelectorAll("button").forEach(b=>{
     b.onclick = async ()=>{
       const act=b.dataset.act, alias=b.dataset.alias;
