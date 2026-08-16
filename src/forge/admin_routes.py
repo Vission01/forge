@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from forge.downloader import ProgressChannel, download_manifest
 from forge.registry import Manifest, Registry
-from forge.stats import RequestCounter, query_vram_mb
+from forge.stats import RequestCounter, query_vram_mb, query_gpu_info
 
 router = APIRouter()
 
@@ -111,6 +111,50 @@ async def get_status(request: Request):
     return JSONResponse(status_code=200, content=lc.status())
 
 
+@router.post("/admin/v1/api-key")
+async def set_api_key(request: Request):
+    """Generate or set an API key at runtime. Requires master password.
+    Body: {"password": "..."} to auto-generate, or {"password": "...", "key": "..."} to set a specific key.
+    """
+    cfg, _, _, _ = _st(request)
+    if not cfg.master_password:
+        raise HTTPException(status_code=403,
+            detail="API key management is disabled. Set FORGE_MASTER_PASSWORD in the environment to enable it.")
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    supplied_pw = body.get("password", "")
+    import secrets as _sec
+    if not supplied_pw or not _sec.compare_digest(str(supplied_pw), cfg.master_password):
+        raise HTTPException(status_code=403, detail="Invalid master password.")
+    if body.get("key"):
+        new_key = str(body["key"])
+    else:
+        new_key = "forge-" + _sec.token_urlsafe(32)
+    cfg.api_key = new_key
+    return JSONResponse(status_code=200, content={"api_key": new_key})
+
+
+@router.delete("/admin/v1/api-key")
+async def clear_api_key(request: Request):
+    """Remove the API key (open admin access). Requires master password in body."""
+    cfg, _, _, _ = _st(request)
+    if not cfg.master_password:
+        raise HTTPException(status_code=403,
+            detail="API key management is disabled. Set FORGE_MASTER_PASSWORD in the environment to enable it.")
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    supplied_pw = body.get("password", "")
+    import secrets as _sec
+    if not supplied_pw or not _sec.compare_digest(str(supplied_pw), cfg.master_password):
+        raise HTTPException(status_code=403, detail="Invalid master password.")
+    cfg.api_key = None
+    return JSONResponse(status_code=200, content={"api_key": None})
+
+
 @router.post("/admin/v1/unload")
 async def post_unload(request: Request):
     _, _, lc, _ = _st(request)
@@ -167,7 +211,7 @@ async def post_activate(request: Request):
 async def get_stats(request: Request):
     cfg, reg, lc, cnt = _st(request)
     total, since_load = await cnt.snapshot()
-    vram_used, vram_total = await query_vram_mb()
+    gpu = await query_gpu_info()
     body = {
         "state": lc.state,
         "active_alias": lc.alias if lc.state == "READY" else None,
@@ -176,8 +220,11 @@ async def get_stats(request: Request):
         "uptime_seconds": _uptime(lc) if lc.state == "READY" else None,
         "requests_served_total": total,
         "requests_served_since_load": since_load if lc.state == "READY" else 0,
-        "vram_used_mb": vram_used,
-        "vram_total_mb": vram_total,
+        "vram_used_mb": gpu.get("vram_used_mb"),
+        "vram_total_mb": gpu.get("vram_total_mb"),
+        "gpu_utilization_pct": gpu.get("gpu_utilization_pct"),
+        "gpu_temp_c": gpu.get("gpu_temp_c"),
+        "gpu_name": gpu.get("gpu_name"),
     }
     return JSONResponse(status_code=200, content=body)
 

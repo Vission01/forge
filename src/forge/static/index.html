@@ -25,13 +25,10 @@ main{padding:18px 22px;display:grid;gap:18px}
 .card h2{margin:0 0 12px;font-size:13px;text-transform:uppercase;
   letter-spacing:.1em;color:var(--dim);font-weight:600}
 .banner{display:none;padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:13px}
-.banner.bad{display:block;background:#3a1512;border:1px solid var(--err);
-  color:#ffb3ad}
-.banner.warn{display:block;background:#3a2c10;border:1px solid var(--warn);
-  color:#ffd98a}
+.banner.bad{display:block;background:#3a1512;border:1px solid var(--err);color:#ffb3ad}
+.banner.warn{display:block;background:#3a2c10;border:1px solid var(--warn);color:#ffd98a}
 table{width:100%;border-collapse:collapse}
-th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);
-  vertical-align:middle}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
 th{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
 td code,code{font-family:var(--mono);font-size:12.5px}
 tr:last-child td{border-bottom:none}
@@ -42,31 +39,28 @@ tr:last-child td{border-bottom:none}
 .chip.DOWNLOADING,.chip.LOADING{background:#2c2410;color:var(--warn);border-color:#5a451c}
 .chip.UNLOADING{background:#20303f;color:#7fc4ff;border-color:#2c4a66}
 .chip.ERROR{background:#341512;color:var(--err);border-color:#6a2420}
-.dot{display:inline-block;width:9px;height:9px;border-radius:50%;
-  margin-right:7px;vertical-align:middle}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:middle}
 .dot.ok{background:var(--ok)}.dot.miss{background:#4a5164}
 button{background:var(--panel2);color:var(--fg);border:1px solid var(--border);
   border-radius:7px;padding:6px 12px;font-size:13px;cursor:pointer}
 button:hover{border-color:var(--accent)}
 button:disabled{opacity:.45;cursor:not-allowed}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.sm{padding:3px 10px;font-size:12px}
 input,textarea{background:#10131b;border:1px solid var(--border);color:var(--fg);
   border-radius:7px;padding:7px 10px;font-size:13px;width:100%}
 input:focus,textarea:focus{outline:none;border-color:var(--accent)}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.row>label{display:flex;gap:8px;align-items:center;color:var(--dim);font-size:13px;min-width:0}
-.row>label>*{min-width:0}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-@media(max-width:800px){.grid2{grid-template-columns:1fr}}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+@media(max-width:900px){.grid3{grid-template-columns:1fr}}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px}
 .kv .k{color:var(--dim)}
-.log{background:#0b0d12;border:1px solid var(--border);border-radius:8px;
-  padding:10px;font-family:var(--mono);font-size:12px;height:220px;overflow:auto;
-  white-space:pre-wrap;word-break:break-word;color:#a8f0c6}
 .mono{font-family:var(--mono);font-size:12.5px;color:var(--dim)}
 .hint{color:var(--dim);font-size:12px}
 .actions button{margin-right:6px}
-/* Modal overlay */
+.progress-bar{background:var(--panel2);border-radius:4px;height:8px;margin-top:6px;overflow:hidden}
+.progress-bar .fill{background:var(--accent);height:100%;border-radius:4px;transition:width .3s}
+/* Modal */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;
   justify-content:center;align-items:center}
 .modal-overlay.open{display:flex}
@@ -93,28 +87,50 @@ input:focus,textarea:focus{outline:none;border-color:var(--accent)}
 <main>
   <div id="banner" class="banner"></div>
 
-  <div class="row" style="justify-content:flex-end">
-    <span class="hint">API base</span>
-    <input id="apiBase" style="width:220px" value="">
-    <span class="hint">Admin key</span>
-    <input id="apiKey" style="width:220px" type="password" value="">
-    <button id="saveCfg">Save</button>
+  <!-- API Key row -->
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div class="row">
+        <span class="hint">API Key</span>
+        <input id="apiKey" style="width:280px" type="password" placeholder="No key set (admin open)">
+        <button id="genKeyBtn" class="sm primary" title="Generate a random API key">Generate</button>
+        <button id="clearKeyBtn" class="sm" title="Remove API key (open access)">Clear</button>
+      </div>
+      <div class="row">
+        <span class="hint">API Base</span>
+        <input id="apiBase" style="width:200px" value="">
+        <button id="saveCfg" class="sm">Save</button>
+      </div>
+    </div>
   </div>
 
-  <div class="grid2">
+  <!-- Unified status panel -->
+  <div class="grid3">
     <section class="card">
-      <h2>Status</h2>
-      <div class="kv" id="statusKv"><span class="k">&mdash;</span><span>waiting&hellip;</span></div>
+      <h2>Model</h2>
+      <div class="kv" id="modelKv"><span class="k">&mdash;</span><span>waiting&hellip;</span></div>
+      <div id="downloadBar" style="display:none;margin-top:10px">
+        <div class="hint" id="downloadLabel">Downloading&hellip;</div>
+        <div class="progress-bar"><div class="fill" id="downloadFill" style="width:0%"></div></div>
+      </div>
+      <div id="errorBox" style="display:none;margin-top:10px">
+        <pre class="mono" id="errorText" style="padding:8px;border:1px solid var(--err);border-radius:6px;white-space:pre-wrap;font-size:12px;color:#ffb3ad;max-height:120px;overflow:auto"></pre>
+      </div>
     </section>
     <section class="card">
-      <h2>Stats</h2>
-      <div class="kv" id="statsKv"><span class="k">&mdash;</span><span>waiting&hellip;</span></div>
+      <h2>GPU</h2>
+      <div class="kv" id="gpuKv"><span class="k">&mdash;</span><span>waiting&hellip;</span></div>
+    </section>
+    <section class="card">
+      <h2>Requests</h2>
+      <div class="kv" id="reqKv"><span class="k">&mdash;</span><span>waiting&hellip;</span></div>
     </section>
   </div>
 
+  <!-- Registry -->
   <section class="card">
     <h2>Registry
-      <button id="addModelBtn" style="float:right;font-size:12px;padding:3px 10px;text-transform:none;letter-spacing:0" class="primary">+ Add Model</button>
+      <button id="addModelBtn" class="sm primary" style="float:right;text-transform:none;letter-spacing:0">+ Add Model</button>
     </h2>
     <table>
       <thead><tr>
@@ -152,7 +168,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--accent)}
     <div class="field">
       <label>Engine Args <span class="hint" style="text-transform:none">(JSON object &mdash; keys become --key value flags)</span></label>
       <textarea id="mEngineArgs" placeholder='{"max-model-len": "65536", "enforce-eager": "true"}'></textarea>
-      <div class="hint">Boolean flags: use "true" as value. Example: "enforce-eager": "true" → --enforce-eager</div>
+      <div class="hint">Boolean flags: use "true" as value. Example: "enforce-eager": "true" &rarr; --enforce-eager</div>
     </div>
     <div class="field">
       <label>Idle Timeout (minutes)</label>
@@ -212,7 +228,8 @@ function kv(el, pairs){
   for (const [k,v] of pairs){
     const kEl = document.createElement("span"); kEl.className="k"; kEl.textContent = k;
     const vEl = document.createElement("span");
-    if (v === null || v === undefined) vEl.innerHTML = "&mdash;";
+    if (v instanceof HTMLElement){ vEl.appendChild(v); }
+    else if (v === null || v === undefined) vEl.innerHTML = "&mdash;";
     else vEl.textContent = String(v);
     el.appendChild(kEl); el.appendChild(vEl);
   }
@@ -224,76 +241,87 @@ function fmtBytes(n){ if (n===null||n===undefined) return "\u2014";
 function fmtDur(s){ if (s===null||s===undefined) return "\u2014";
   s=Math.floor(s); const h=Math.floor(s/3600), m=Math.floor(s%3600/60);
   return (h?h+"h ":"") + m+"m "+(s%60)+"s"; }
+function chipEl(state){
+  const c=document.createElement("span");
+  c.className="chip "+(state||"IDLE");
+  c.textContent=state||"IDLE";
+  return c;
+}
 
-async function refreshStatus(){
+// ---- Unified refresh ---- //
+async function refreshDashboard(){
   try {
-    const r = await api("/admin/v1/status");
-    if (r.status === 401){ setBanner("bad", "Admin key rejected (401). Check the key field."); return; }
-    const d = r.data || {};
-    const pairs = [
-      ["state", chip(d.state)],
-      ["active alias", d.alias ?? null],
-      ["served model name", d.served_model_name ?? null],
-      ["last request at", d.last_request_at ?? null],
-      ["queue depth", d.queue_depth ?? 0],
-    ];
-    if (d.last_error) pairs.push(["last error", null]);
-    kvElPairs(pairs);
-    if (d.last_error) showStatusError(d.last_error);
-    else hideStatusError();
+    const [statusR, statsR] = await Promise.all([
+      api("/admin/v1/status"),
+      api("/admin/v1/stats")
+    ]);
+    if (statusR.status === 401){ setBanner("bad", "API key rejected (401). Check the key field."); return; }
+    setBanner(null);
+    const st = statusR.data || {};
+    const stats = statsR.data || {};
+
+    // Model panel
+    kv($("modelKv"), [
+      ["state", chipEl(st.state)],
+      ["model", st.served_model_name ?? null],
+      ["alias", st.alias ?? null],
+      ["loaded at", st.loaded_at ?? null],
+      ["uptime", fmtDur(stats.uptime_seconds)],
+      ["last request", st.last_request_at ?? null],
+      ["queue depth", st.queue_depth ?? 0],
+    ]);
+
+    // Download progress
+    if (st.state === "DOWNLOADING" && st.download_progress){
+      const dp = st.download_progress;
+      $("downloadBar").style.display = "block";
+      if (dp.total_bytes && dp.total_bytes > 0){
+        const pct = Math.min(100, (dp.downloaded_bytes / dp.total_bytes * 100)).toFixed(1);
+        $("downloadFill").style.width = pct + "%";
+        $("downloadLabel").textContent = (dp.file||"Downloading") + " \u2014 " + fmtBytes(dp.downloaded_bytes) + " / " + fmtBytes(dp.total_bytes) + " (" + pct + "%)";
+      } else {
+        $("downloadFill").style.width = "0%";
+        $("downloadLabel").textContent = (dp.file||"Downloading") + " \u2014 " + fmtBytes(dp.downloaded_bytes);
+      }
+    } else {
+      $("downloadBar").style.display = "none";
+    }
+
+    // Error
+    if (st.last_error && st.state === "ERROR"){
+      $("errorBox").style.display = "block";
+      $("errorText").textContent = st.last_error;
+    } else {
+      $("errorBox").style.display = "none";
+    }
+
+    // GPU panel
+    const vramPct = (stats.vram_used_mb && stats.vram_total_mb) ? ((stats.vram_used_mb/stats.vram_total_mb)*100).toFixed(1)+"%" : null;
+    kv($("gpuKv"), [
+      ["gpu", stats.gpu_name ?? null],
+      ["vram", (stats.vram_used_mb!=null ? fmtBytes(stats.vram_used_mb*1048576)+" / "+fmtBytes(stats.vram_total_mb*1048576) : null)],
+      ["vram %", vramPct],
+      ["utilization", stats.gpu_utilization_pct!=null ? stats.gpu_utilization_pct+"%" : null],
+      ["temperature", stats.gpu_temp_c!=null ? stats.gpu_temp_c+"\u00b0C" : null],
+    ]);
+
+    // Requests panel
+    kv($("reqKv"), [
+      ["total", stats.requests_served_total ?? 0],
+      ["since load", stats.requests_served_since_load ?? 0],
+    ]);
+
   } catch(e){ setBanner("warn", "Cannot reach the API: "+e); }
 }
-function chip(state){ return state||"IDLE"; }
-function kvElPairs(pairs){
-  const el = $("statusKv"); el.innerHTML="";
-  for (const [k,v] of pairs){
-    const ke=document.createElement("span"); ke.className="k"; ke.textContent=k;
-    const ve=document.createElement("span");
-    if (typeof v === "string" && /^(IDLE|READY|DOWNLOADING|LOADING|UNLOADING|ERROR)$/.test(v) && k.toLowerCase()==="state"){
-      const c=document.createElement("span"); c.className="chip "+v; c.textContent=v;
-      ve.appendChild(c);
-    } else if (v === null || v === undefined) ve.innerHTML="&mdash;";
-    else ve.textContent = String(v);
-    el.appendChild(ke); el.appendChild(ve);
-  }
-}
-let _errEl = null;
-let _errHolder = null;
-function showStatusError(msg){
-  if (!_errEl){ _errEl = document.createElement("pre");
-    _errEl.className="mono"; _errEl.style.cssText="margin-top:10px;padding:8px;border:1px solid var(--err);border-radius:6px;white-space:pre-wrap;font-size:12px;color:#ffb3ad;max-height:160px;overflow:auto";
-    _getErrHolder().appendChild(_errEl); }
-  _errEl.textContent = msg;
-}
-function _getErrHolder(){ if (!_errHolder){ let d=document.createElement("div"); d.id="statusErrWrap";
-  const statusCard = document.querySelector("#statusKv").closest(".card");
-  if (statusCard) statusCard.appendChild(d); else document.querySelector("main").appendChild(d);
-  _errHolder=d;} return _errHolder; }
-function hideStatusError(){ if (_errEl) _errEl.textContent=""; }
 
-async function refreshStats(){
-  try {
-    const r = await api("/admin/v1/stats");
-    if (r.status === 401) return;   // covered by banner
-    const d = r.data || {};
-    kv($("statsKv"), [
-      ["state", d.state ?? null],
-      ["active alias", d.active_alias ?? null],
-      ["uptime", fmtDur(d.uptime_seconds)],
-      ["requests (total)", d.requests_served_total ?? 0],
-      ["requests (since load)", d.requests_served_since_load ?? 0],
-      ["VRAM used / total", (d.vram_used_mb!=null? fmtBytes(d.vram_used_mb*1048576):"\u2014") + " / " + (d.vram_total_mb!=null? fmtBytes(d.vram_total_mb*1048576):"\u2014")],
-    ]);
-  } catch(e){}
-}
-
+// ---- Registry ---- //
 async function refreshRegistry(){
   const r = await api("/admin/v1/registry");
   const sr = await api("/admin/v1/status");
   const activeAlias = (sr.data || {}).alias || null;
   const activeState = (sr.data || {}).state || "IDLE";
   const body = $("regBody");
-  if (r.status === 401){ setBanner("bad","Admin key rejected (401). Check the key field.");
+  if (r.status === 401){
     body.innerHTML = '<tr><td colspan="6" class="hint">unauthorized</td></tr>'; return; }
   if (r.status !== 200){
     $("regErr").textContent = "registry error ("+r.status+"): "+((r.data&&r.data.detail)||"");
@@ -346,23 +374,49 @@ async function refreshRegistry(){
     b.onclick = async ()=>{
       const act=b.dataset.act, alias=b.dataset.alias;
       if (act==="activate"){ b.disabled=true; await api("/admin/v1/activate",{method:"POST",body:{alias}});
-        refreshStatus(); refreshRegistry(); }
+        refreshDashboard(); refreshRegistry(); }
       if (act==="unload"){ b.disabled=true; await api("/admin/v1/unload",{method:"POST"});
-        refreshStatus(); refreshRegistry(); }
+        refreshDashboard(); refreshRegistry(); }
       if (act==="delete"){ if (!confirm("Delete manifest "+alias+"? (weights are kept on disk)")) return;
         await api("/admin/v1/registry/"+encodeURIComponent(alias),{method:"DELETE"});
-        refreshRegistry(); refreshStatus(); }
+        refreshRegistry(); refreshDashboard(); }
       if (act==="pull"){ b.disabled=true; b.textContent="pulling\u2026";
         await api("/admin/v1/activate",{method:"POST",body:{alias}});
-        refreshStatus(); refreshRegistry(); }
+        refreshDashboard(); refreshRegistry(); }
       if (act==="edit"){ openEditModal(alias); }
     };
   });
 }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
+// ---- API Key ---- //
+$("genKeyBtn").onclick = async ()=>{
+  const pw = prompt("Enter master password to generate an API key:");
+  if (!pw) return;
+  const r = await api("/admin/v1/api-key",{method:"POST",body:{password:pw}});
+  if (r.status === 200 && r.data && r.data.api_key){
+    $("apiKey").value = r.data.api_key;
+    $("apiKey").type = "text"; // show it so user can copy
+    saveCfg();
+    setTimeout(()=>{ $("apiKey").type = "password"; }, 10000); // mask after 10s
+  } else {
+    alert((r.data&&r.data.detail) || "Failed to generate key ("+r.status+")");
+  }
+};
+$("clearKeyBtn").onclick = async ()=>{
+  const pw = prompt("Enter master password to clear the API key:");
+  if (!pw) return;
+  const r = await api("/admin/v1/api-key",{method:"DELETE",body:{password:pw}});
+  if (r.status === 200){
+    $("apiKey").value = "";
+    saveCfg();
+  } else {
+    alert((r.data&&r.data.detail) || "Failed to clear key ("+r.status+")");
+  }
+};
+
 // ---- Manifest modal (Create / Edit) ---- //
-let _editingAlias = null; // null = creating, string = editing
+let _editingAlias = null;
 
 function openCreateModal(){
   _editingAlias = null;
@@ -415,50 +469,25 @@ async function saveModal(){
   const served = $("mServed").value.trim();
   const idleMins = parseInt($("mIdle").value, 10);
   let engineArgs;
-
   if (!alias){ errEl.textContent="Alias is required."; errEl.style.display="block"; return; }
   if (!repo){ errEl.textContent="HuggingFace repo is required."; errEl.style.display="block"; return; }
   if (!served){ errEl.textContent="Served model name is required."; errEl.style.display="block"; return; }
   if (isNaN(idleMins) || idleMins < 1){ errEl.textContent="Idle timeout must be at least 1 minute."; errEl.style.display="block"; return; }
+  try { engineArgs = JSON.parse($("mEngineArgs").value || "{}"); }
+  catch(e){ errEl.textContent = "Engine args is not valid JSON: " + e.message; errEl.style.display = "block"; return; }
 
-  try {
-    engineArgs = JSON.parse($("mEngineArgs").value || "{}");
-  } catch(e){
-    errEl.textContent = "Engine args is not valid JSON: " + e.message;
-    errEl.style.display = "block";
-    return;
-  }
-
-  const manifest = {
-    alias,
-    source: { repo, file },
-    served_model_name: served,
-    engine_args: engineArgs,
-    idle_timeout_seconds: idleMins * 60
-  };
-
+  const manifest = {alias, source:{repo,file}, served_model_name:served,
+    engine_args:engineArgs, idle_timeout_seconds:idleMins*60};
   $("modalSave").disabled = true;
-
   if (_editingAlias) {
-    // Edit: delete old + recreate (alias is immutable, but other fields may change)
-    // If alias changed... it can't, the field is disabled in edit mode.
     await api("/admin/v1/registry/"+encodeURIComponent(_editingAlias), {method:"DELETE"});
     const r = await api("/admin/v1/registry", {method:"POST", body:manifest});
-    if (r.status === 201 || r.status === 200){
-      closeModal(); refreshRegistry();
-    } else {
-      errEl.textContent = "Error: " + ((r.data&&r.data.detail)||r.status);
-      errEl.style.display = "block";
-    }
+    if (r.status === 201 || r.status === 200){ closeModal(); refreshRegistry(); }
+    else { errEl.textContent = "Error: " + ((r.data&&r.data.detail)||r.status); errEl.style.display = "block"; }
   } else {
-    // Create
     const r = await api("/admin/v1/registry", {method:"POST", body:manifest});
-    if (r.status === 201 || r.status === 200){
-      closeModal(); refreshRegistry();
-    } else {
-      errEl.textContent = "Error: " + ((r.data&&r.data.detail)||r.status);
-      errEl.style.display = "block";
-    }
+    if (r.status === 201 || r.status === 200){ closeModal(); refreshRegistry(); }
+    else { errEl.textContent = "Error: " + ((r.data&&r.data.detail)||r.status); errEl.style.display = "block"; }
   }
   $("modalSave").disabled = false;
 }
@@ -468,13 +497,12 @@ $("modalCancel").onclick = closeModal;
 $("modalSave").onclick = saveModal;
 $("modelModal").onclick = (e)=>{ if (e.target===$("modelModal")) closeModal(); };
 
-$("saveCfg").onclick = ()=> saveCfg();
-loadCfg(); saveCfg();
+// ---- Init ---- //
 $("saveCfg").onclick = ()=>{ saveCfg(); refreshAll(); };
+loadCfg(); saveCfg();
 
-let tick = 0;
 async function refreshAll(){
-  await Promise.allSettled([refreshStatus(), refreshStats(), refreshRegistry()]);
+  await Promise.allSettled([refreshDashboard(), refreshRegistry()]);
 }
 refreshAll();
 setInterval(refreshAll, 3000);

@@ -18,6 +18,7 @@ class ForgeConfig(BaseModel):
     internal_port: int = 18080
     data_dir: str = "/data"
     api_key: Optional[str] = None
+    master_password: Optional[str] = None  # protects API key management
     startup_timeout_seconds: int = 600
     health_poll_interval_seconds: int = 2
     hf_token: Optional[str] = None
@@ -56,6 +57,7 @@ def load_config() -> ForgeConfig:
             internal_port=_env("FORGE_INTERNAL_PORT", "18080"),
             data_dir=_env("FORGE_DATA_DIR", "/data"),
             api_key=_env("FORGE_API_KEY"),
+            master_password=_env("FORGE_MASTER_PASSWORD"),
             startup_timeout_seconds=_env("FORGE_STARTUP_TIMEOUT_SECONDS", "600"),
             health_poll_interval_seconds=_env("FORGE_HEALTH_POLL_INTERVAL_SECONDS", "2"),
             hf_token=_env("FORGE_HF_TOKEN"),

@@ -12,12 +12,15 @@ from typing import Optional, Tuple
 log = logging.getLogger("forge.stats")
 
 
-async def query_vram_mb() -> Tuple[Optional[int], Optional[int]]:
-    """Return (used_mb, total_mb); (None, None) if the command fails or is unavailable."""
+async def query_gpu_info() -> dict:
+    """Return GPU info dict; empty dict if nvidia-smi unavailable.
+
+    Keys: vram_used_mb, vram_total_mb, gpu_utilization_pct, gpu_temp_c, gpu_name
+    """
     try:
         proc = await asyncio.create_subprocess_exec(
             "nvidia-smi",
-            "--query-gpu=memory.used,memory.total",
+            "--query-gpu=memory.used,memory.total,utilization.gpu,temperature.gpu,name",
             "--format=csv,noheader,nounits",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -25,15 +28,27 @@ async def query_vram_mb() -> Tuple[Optional[int], Optional[int]]:
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
         if proc.returncode != 0:
             log.debug("nvidia-smi exit code %d", proc.returncode)
-            return (None, None)
+            return {}
         lines = [ln for ln in stdout.decode().splitlines() if ln.strip()]
         if not lines:
-            return (None, None)
-        used_s, total_s = lines[0].split(",")
-        return (int(used_s.strip()), int(total_s.strip()))
-    except Exception as exc:  # noqa: BLE001 - spec: MUST not error the endpoint
+            return {}
+        parts = [p.strip() for p in lines[0].split(",")]
+        return {
+            "vram_used_mb": int(parts[0]),
+            "vram_total_mb": int(parts[1]),
+            "gpu_utilization_pct": int(parts[2]),
+            "gpu_temp_c": int(parts[3]),
+            "gpu_name": parts[4] if len(parts) > 4 else None,
+        }
+    except Exception as exc:
         log.debug("nvidia-smi unavailable: %s", exc)
-        return (None, None)
+        return {}
+
+
+# Backward compat wrapper
+async def query_vram_mb() -> Tuple[Optional[int], Optional[int]]:
+    info = await query_gpu_info()
+    return (info.get("vram_used_mb"), info.get("vram_total_mb"))
 
 
 class RequestCounter:

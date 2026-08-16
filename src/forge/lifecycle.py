@@ -95,6 +95,7 @@ class LifecycleManager:
         self.last_request_at: Optional[str] = None
         self.last_error: Optional[str] = None
         self._queue_depth = 0
+        self._download_progress: Optional[dict] = None  # {file, downloaded_bytes, total_bytes}
 
         self._op_lock = asyncio.Lock()   # single operation slot (§13)
         self._state_lock = asyncio.Lock()  # guards state bookkeeping
@@ -172,13 +173,37 @@ class LifecycleManager:
             if not self.registry.weights_present(manifest):
                 self._set(ST_DOWNLOADING, alias=alias,
                           served_model_name=manifest.served_model_name)
-                from forge.downloader import download_manifest
+                self._download_progress = {"file": None, "downloaded_bytes": 0, "total_bytes": None}
+                from forge.downloader import download_manifest, ProgressChannel
+
+                # Wire a channel so progress updates flow into _download_progress
+                channel = ProgressChannel()
+                channel.bind_loop(asyncio.get_running_loop())
+
+                async def _pump_progress():
+                    while True:
+                        evt = await channel.get()
+                        if evt is None:
+                            break
+                        if isinstance(evt, dict) and evt.get("status") == "downloading":
+                            self._download_progress = {
+                                "file": evt.get("file"),
+                                "downloaded_bytes": evt.get("downloaded_bytes", 0),
+                                "total_bytes": evt.get("total_bytes"),
+                            }
+
+                pump_task = asyncio.create_task(_pump_progress())
                 try:
-                    await download_manifest(self.cfg, self.registry, manifest)
+                    await download_manifest(self.cfg, self.registry, manifest, channel=channel)
                 except Exception as exc:
+                    self._download_progress = None
                     self.last_error = f"download failed: {exc}"
                     self._set(ST_ERROR, alias=alias)
                     raise LoadFailed(f"download failed: {exc}") from exc
+                finally:
+                    channel.push(None)  # sentinel to stop pump
+                    await pump_task
+                self._download_progress = None
 
             # ---- LOADING ---- #
             self._set(ST_LOADING, alias=alias,
@@ -337,6 +362,8 @@ class LifecycleManager:
         }
         if self.state == ST_ERROR:
             d["last_error"] = self.last_error or self.stderr_tail or "(no stderr captured)"
+        if self.state == ST_DOWNLOADING and self._download_progress:
+            d["download_progress"] = self._download_progress
         return d
 
     @property
