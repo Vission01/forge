@@ -1,0 +1,14 @@
+# Registry manifest for Qwen3.8-27B NVFP4 on RTX 5090 (32GB).
+# Place in /data/registry/qwen38-27b-nvfp4.yaml (or POST to /admin/v1/registry).
+alias: qwen38-27b-nvfp4
+source:
+  repo: unsloth/Qwen3.8-27B-NVFP4
+served_model_name: qwen3.8-27b
+engine_args:
+  # FP8 KV cache for 2x longer context (per Unsloth recommendation)
+  kv-cache-dtype: fp8_e4m3
+  # Limit context to fit comfortably in 32GB with NVFP4 weights (~17GB)
+  max-model-len: "65536"
+  # Use most of VRAM (32GB card, 17GB model → ~15GB for KV/overhead)
+  gpu-memory-utilization: "0.92"
+idle_timeout_seconds: 600

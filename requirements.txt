@@ -1,0 +1,9 @@
+# Pinned from the working venv — updated 2026-08-16.
+# vLLM + uvicorn are provided by the base Docker image (vllm/vllm-openai:latest).
+# These are gateway-only deps that must stay compatible with the base image.
+# Match vLLM's pinned range (vllm 0.27.x requires fastapi<0.137.0)
+fastapi[standard]>=0.133.0,<0.137.0
+pydantic>=2.10,<3
+httpx==0.28.1
+huggingface-hub==1.27.0
+PyYAML==6.0.3

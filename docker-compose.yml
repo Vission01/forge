@@ -1,0 +1,43 @@
+# docker-compose.yml — FORGE service
+# Usage:
+#   1. cp forge.env.example .env   (optional — only if you want admin auth + HF token)
+#   2. docker compose up -d --build
+services:
+  forge:
+    build: .
+    image: forge:local
+    container_name: forge
+    ports:
+      - "9090:9090"          # dashboard + /v1/* (OpenAI-compatible) + /admin/v1/*
+      # - "18080:18080"      # uncomment to reach the internal vLLM directly
+    env_file:
+      - path: .env
+        required: false     # no .env => FORGE_API_KEY unset => admin routes open
+    environment:
+      # First vLLM load on Blackwell compiles CUDA kernels — needs extra time
+      FORGE_STARTUP_TIMEOUT_SECONDS: "1200"
+    volumes:
+      - forge-data:/data     # registry, state, model weights (survives rebuilds)
+    restart: unless-stopped
+    networks:
+      - default
+      - ai-network
+      - n8n-custom_n8n-network
+    # vLLM needs a GPU inside the container. Uncomment the block below and
+    # make sure the host is running nvidia-container-toolkit.
+    deploy:
+       resources:
+         reservations:
+           devices:
+             - driver: nvidia
+               count: 1
+               capabilities: [gpu]
+
+volumes:
+  forge-data:
+
+networks:
+  ai-network:
+    external: true
+  n8n-custom_n8n-network:
+    external: true

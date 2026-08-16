@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FORGE</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style>
+:root{
+  --bg:#0f1117;--panel:#171a23;--panel2:#1d2230;--border:#2a3040;
+  --fg:#e6e9f0;--dim:#8b93a7;--accent:#4f8cff;--ok:#38c172;
+  --warn:#f5a623;--err:#e5534b;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--accent);text-decoration:none}
+header{padding:18px 22px;border-bottom:1px solid var(--border);
+  display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+header h1{margin:0;font-size:20px;letter-spacing:.08em;font-weight:600}
+header .sub{color:var(--dim);font-size:13px}
+main{padding:18px 22px;display:grid;gap:18px;max-width:1100px}
+.card{background:var(--panel);border:1px solid var(--border);
+  border-radius:10px;padding:16px}
+.card h2{margin:0 0 12px;font-size:13px;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--dim);font-weight:600}
+.banner{display:none;padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:13px}
+.banner.bad{display:block;background:#3a1512;border:1px solid var(--err);
+  color:#ffb3ad}
+.banner.warn{display:block;background:#3a2c10;border:1px solid var(--warn);
+  color:#ffd98a}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);
+  vertical-align:middle}
+th{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+td code,code{font-family:var(--mono);font-size:12.5px}
+tr:last-child td{border-bottom:none}
+.chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;
+  font-weight:600;border:1px solid transparent}
+.chip.IDLE{background:#232838;color:var(--dim)}
+.chip.READY{background:#0e2a1c;color:var(--ok);border-color:#1c5a38}
+.chip.DOWNLOADING,.chip.LOADING{background:#2c2410;color:var(--warn);border-color:#5a451c}
+.chip.UNLOADING{background:#20303f;color:#7fc4ff;border-color:#2c4a66}
+.chip.ERROR{background:#341512;color:var(--err);border-color:#6a2420}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;
+  margin-right:7px;vertical-align:middle}
+.dot.ok{background:var(--ok)}.dot.miss{background:#4a5164}
+button{background:var(--panel2);color:var(--fg);border:1px solid var(--border);
+  border-radius:7px;padding:6px 12px;font-size:13px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+input,textarea{background:#10131b;border:1px solid var(--border);color:var(--fg);
+  border-radius:7px;padding:7px 10px;font-size:13px;width:100%}
+input:focus,textarea:focus{outline:none;border-color:var(--accent)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.row>label{display:flex;gap:8px;align-items:center;color:var(--dim);font-size:13px;min-width:0}
+.row>label>*{min-width:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:800px){.grid2{grid-template-columns:1fr}}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px}
+.kv .k{color:var(--dim)}
+.log{background:#0b0d12;border:1px solid var(--border);border-radius:8px;
+  padding:10px;font-family:var(--mono);font-size:12px;height:220px;overflow:auto;
+  white-space:pre-wrap;word-break:break-word;color:#a8f0c6}
+.mono{font-family:var(--mono);font-size:12.5px;color:var(--dim)}
+.hint{color:var(--dim);font-size:12px}
+.actions button{margin-right:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>FORGE</h1>
+  <span class="sub">vLLM gateway &middot; manage models without touching the CLI</span>
+</header>
+<main>
+  <div id="banner" class="banner"></div>
+
+  <div class="row" style="justify-content:flex-end">
+    <span class="hint">API base</span>
+    <input id="apiBase" style="width:220px" value="">
+    <span class="hint">Admin key</span>
+    <input id="apiKey" style="width:220px" type="password" value="">
+    <button id="saveCfg">Save</button>
+  </div>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>Status</h2>
+      <div class="kv" id="statusKv"><span class="k">—</span><span>waiting…</span></div>
+    </section>
+    <section class="card">
+      <h2>Stats</h2>
+      <div class="kv" id="statsKv"><span class="k">—</span><span>waiting…</span></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Registry <span class="hint" style="text-transform:none;letter-spacing:0">(POST /admin/v1/registry · DELETE /admin/v1/registry/{alias})</span></h2>
+    <table>
+      <thead><tr>
+        <th>alias</th><th>served model name</th><th>source</th>
+        <th>downloaded</th><th>idle timeout</th><th>actions</th>
+      </tr></thead>
+      <tbody id="regBody"><tr><td colspan="6" class="hint">loading…</td></tr></tbody>
+    </table>
+    <div id="regErr" class="hint" style="margin-top:8px"></div>
+  </section>
+
+  <section class="card">
+    <h2>Pull weights <span class="hint" style="text-transform:none;letter-spacing:0">(POST /admin/v1/pull — streamed ndjson)</span></h2>
+    <div class="row">
+      <label>alias <input id="pullAlias" style="width:160px" placeholder="my-model"></label>
+      <button id="pullBtn" class="primary">Start pull</button>
+      <button id="pullCancel">Abort</button>
+      <span id="pullState" class="hint"></span>
+    </div>
+    <div class="log" id="pullLog" style="margin-top:10px;display:none"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const $ = (id)=>document.getElementById(id);
+const LS_KEY = "forge_cfg";
+const DEFAULT_BASE = window.location.origin;
+
+function loadCfg(){
+  let c = {base: DEFAULT_BASE, key: ""};
+  try { c = Object.assign(c, JSON.parse(localStorage.getItem(LS_KEY)||"{}")); } catch(e){}
+  $("apiBase").value = c.base; $("apiKey").value = c.key;
+}
+function saveCfg(){
+  const c = {base: $("apiBase").value.trim() || DEFAULT_BASE,
+             key: $("apiKey").value.trim()};
+  localStorage.setItem(LS_KEY, JSON.stringify(c));
+  return c;
+}
+function cfg(){
+  return {base: ($("apiBase").value.trim()||DEFAULT_BASE).replace(/\/+$/,""),
+          key: $("apiKey").value.trim()};
+}
+function setBanner(kind, msg){
+  const b = $("banner");
+  b.className = "banner";
+  if (kind){ b.classList.add(kind); b.textContent = msg; } else { b.textContent = ""; }
+}
+
+async function api(path, opts={}){
+  const {base, key} = cfg();
+  const headers = Object.assign({}, opts.headers||{});
+  if (path.startsWith("/admin/") && key) headers["Authorization"] = "Bearer " + key;
+  if (opts.body && typeof opts.body !== "string") headers["Content-Type"] = "application/json";
+  const resp = await fetch(base+path, {method: opts.method||"GET",
+    headers, body: opts.body ? JSON.stringify(opts.body) : undefined});
+  let data = null;
+  const ct = resp.headers.get("content-type")||"";
+  if (ct.includes("json")) { try { data = await resp.json(); } catch(e){} }
+  else { try { data = await resp.text(); } catch(e){} }
+  return {status: resp.status, data, headers: resp.headers};
+}
+
+function kv(el, pairs){
+  el.innerHTML = "";
+  for (const [k,v] of pairs){
+    const kEl = document.createElement("span"); kEl.className="k"; kEl.textContent = k;
+    const vEl = document.createElement("span");
+    if (v === null || v === undefined) vEl.innerHTML = "&mdash;";
+    else vEl.textContent = String(v);
+    el.appendChild(kEl); el.appendChild(vEl);
+  }
+}
+function fmtBytes(n){ if (n===null||n===undefined) return "\u2014";
+  const u=["B","KB","MB","GB","TB"]; let i=0;
+  while (n>=1024 && i<u.length-1){ n/=1024; i++; }
+  return n.toFixed(1)+" "+u[i]; }
+function fmtDur(s){ if (s===null||s===undefined) return "\u2014";
+  s=Math.floor(s); const h=Math.floor(s/3600), m=Math.floor(s%3600/60);
+  return (h?h+"h ":"") + m+"m "+(s%60)+"s"; }
+
+async function refreshStatus(){
+  try {
+    const r = await api("/admin/v1/status");
+    if (r.status === 401){ setBanner("bad", "Admin key rejected (401). Check the key field."); return; }
+    const d = r.data || {};
+    const pairs = [
+      ["state", chip(d.state)],
+      ["active alias", d.alias ?? null],
+      ["served model name", d.served_model_name ?? null],
+      ["last request at", d.last_request_at ?? null],
+      ["queue depth", d.queue_depth ?? 0],
+    ];
+    if (d.last_error) pairs.push(["last error", null]);
+    kvElPairs(pairs);
+    if (d.last_error) showStatusError(d.last_error);
+    else hideStatusError();
+  } catch(e){ setBanner("warn", "Cannot reach the API: "+e); }
+}
+function chip(state){ return state||"IDLE"; }
+function kvElPairs(pairs){
+  const el = $("statusKv"); el.innerHTML="";
+  for (const [k,v] of pairs){
+    const ke=document.createElement("span"); ke.className="k"; ke.textContent=k;
+    const ve=document.createElement("span");
+    if (typeof v === "string" && /^(IDLE|READY|DOWNLOADING|LOADING|UNLOADING|ERROR)$/.test(v) && k.toLowerCase()==="state"){
+      const c=document.createElement("span"); c.className="chip "+v; c.textContent=v;
+      ve.appendChild(c);
+    } else if (v === null || v === undefined) ve.innerHTML="&mdash;";
+    else ve.textContent = String(v);
+    el.appendChild(ke); el.appendChild(ve);
+  }
+}
+let _errEl = null;
+let _errHolder = null;
+function showStatusError(msg){
+  if (!_errEl){ _errEl = document.createElement("pre");
+    _errEl.className="mono"; _errEl.style.cssText="margin-top:10px;padding:8px;border:1px solid var(--err);border-radius:6px;white-space:pre-wrap;font-size:12px;color:#ffb3ad;max-height:160px;overflow:auto";
+    _getErrHolder().appendChild(_errEl); }
+  _errEl.textContent = msg;
+}
+function _getErrHolder(){ if (!_errHolder){ let d=document.createElement("div"); d.id="statusErrWrap";
+  const statusCard = document.querySelector("#statusKv").closest(".card");
+  if (statusCard) statusCard.appendChild(d); else document.querySelector("main").appendChild(d);
+  _errHolder=d;} return _errHolder; }
+function hideStatusError(){ if (_errEl) _errEl.textContent=""; }
+
+async function refreshStats(){
+  try {
+    const r = await api("/admin/v1/stats");
+    if (r.status === 401) return;   // covered by banner
+    const d = r.data || {};
+    kv($("statsKv"), [
+      ["state", d.state ?? null],
+      ["active alias", d.active_alias ?? null],
+      ["uptime", fmtDur(d.uptime_seconds)],
+      ["requests (total)", d.requests_served_total ?? 0],
+      ["requests (since load)", d.requests_served_since_load ?? 0],
+      ["VRAM used / total", (d.vram_used_mb!=null? fmtBytes(d.vram_used_mb*1048576):"\u2014") + " / " + (d.vram_total_mb!=null? fmtBytes(d.vram_total_mb*1048576):"\u2014")],
+    ]);
+  } catch(e){}
+}
+
+async function refreshRegistry(){
+  const r = await api("/admin/v1/registry");
+  const sr = await api("/admin/v1/status");
+  const activeAlias = (sr.data || {}).alias || null;
+  const activeState = (sr.data || {}).state || "IDLE";
+  const body = $("regBody");
+  if (r.status === 401){ setBanner("bad","Admin key rejected (401). Check the key field.");
+    body.innerHTML = '<tr><td colspan="6" class="hint">unauthorized</td></tr>'; return; }
+  if (r.status !== 200){
+    $("regErr").textContent = "registry error ("+r.status+"): "+((r.data&&r.data.detail)||"");
+    return;
+  }
+  $("regErr").textContent = "";
+  const list = r.data || [];
+  if (!list.length){ body.innerHTML = '<tr><td colspan="6" class="hint">no manifests yet \u2014 add one via POST /admin/v1/registry</td></tr>'; return; }
+  body.innerHTML = "";
+  for (const m of list){
+    const tr = document.createElement("tr");
+    const src = m.source.repo + (m.source.file ? "\u00b7"+m.source.file : "");
+    const isActive = m.alias === activeAlias && activeState === "READY";
+    const isLoading = m.alias === activeAlias && (activeState === "LOADING" || activeState === "DOWNLOADING");
+    let actionBtn = "";
+    if (isActive) {
+      actionBtn = "<button data-act='unload' data-alias='"+esc(m.alias)+"' class='primary' style='background:var(--err);border-color:var(--err)'>Unload</button>";
+    } else if (isLoading) {
+      actionBtn = "<button disabled>"+esc(activeState.toLowerCase())+"\u2026</button>";
+    } else if (m.downloaded) {
+      actionBtn = "<button data-act='activate' data-alias='"+esc(m.alias)+"'>Activate</button>";
+    }
+    tr.innerHTML =
+      "<td><code>"+esc(m.alias)+"</code></td>"+
+      "<td><code>"+esc(m.served_model_name)+"</code></td>"+
+      "<td class='mono'>"+esc(src)+"</td>"+
+      "<td>"+(m.downloaded?'<span class="dot ok"></span>yes':'<span class="dot miss"></span>no')+"</td>"+
+      "<td>"+(m.idle_timeout_seconds/60)+" min</td>"+
+      "<td class='actions'>"+
+        actionBtn+
+        "<button data-act='pull' data-alias='"+esc(m.alias)+"'>Pull</button>"+
+        "<button data-act='delete' data-alias='"+esc(m.alias)+"'>Delete</button>"+
+      "</td>";
+    body.appendChild(tr);
+  }
+  body.querySelectorAll("button").forEach(b=>{
+    b.onclick = async ()=>{
+      const act=b.dataset.act, alias=b.dataset.alias;
+      if (act==="activate"){ b.disabled=true; await api("/admin/v1/activate",{method:"POST",body:{alias}});
+        refreshStatus(); refreshRegistry(); }
+      if (act==="unload"){ b.disabled=true; await api("/admin/v1/unload",{method:"POST"});
+        refreshStatus(); refreshRegistry(); }
+      if (act==="delete"){ if (!confirm("Delete manifest "+alias+"? (weights are kept on disk)")) return;
+        await api("/admin/v1/registry/"+encodeURIComponent(alias),{method:"DELETE"});
+        refreshRegistry(); refreshStatus(); }
+      if (act==="pull"){ $("pullAlias").value = alias; startPull(); }
+    };
+  });
+}
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+let pullAbort = null;
+async function startPull(){
+  const alias = $("pullAlias").value.trim();
+  if (!alias){ alert("Enter an alias to pull"); return; }
+  const logEl = $("pullLog"); logEl.style.display="block"; logEl.textContent="";
+  $("pullBtn").disabled = true; $("pullCancel").disabled=false;
+  $("pullState").textContent = "downloading\u2026";
+  const {base, key} = cfg();
+  const headers = {headers:{} };
+  const init = {method:"POST", headers:{"Content-Type":"application/json"},
+                body: JSON.stringify({alias})};
+  if (key) init.headers["Authorization"] = "Bearer "+key;
+  pullAbort = new AbortController();
+  init.signal = pullAbort.signal;
+  try {
+    const resp = await fetch(base+"/admin/v1/pull", init);
+    if (!resp.ok || !resp.body){
+      const t = await resp.text();
+      logEl.textContent = t; return;
+    }
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    while (true){
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream:true});
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0){
+        const line = buf.slice(0, i); buf = buf.slice(i+1);
+        if (line.trim()) logEl.textContent += line + "\n";
+      }
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    if (buf.trim()) logEl.textContent += buf.trim() + "\n";
+    $("pullState").textContent = "done";
+  } catch(e){
+    $("pullState").textContent = (e.name==="AbortError") ? "aborted" : "error: "+e;
+  } finally {
+    $("pullBtn").disabled = false; $("pullCancel").disabled = true;
+    pullAbort = null; refreshRegistry(); refreshStats();
+  }
+}
+$("pullCancel").onclick = ()=>{ if (pullAbort) pullAbort.abort(); };
+
+$("saveCfg").onclick = ()=> saveCfg();
+loadCfg(); saveCfg();
+$("saveCfg").onclick = ()=>{ saveCfg(); refreshAll(); };
+
+let tick = 0;
+async function refreshAll(){
+  await Promise.allSettled([refreshStatus(), refreshStats(), refreshRegistry()]);
+}
+refreshAll();
+setInterval(refreshAll, 3000);
+</script>
+</body>
+</html>

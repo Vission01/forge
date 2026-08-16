@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Anvil wireframe - dark blue, matching reference icon shape -->
+  <g fill="none" stroke="#1a3a6e" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Top face: wide flat slab -->
+    <path d="M 14 16 L 53 16 L 53 24 L 14 24 Z"/>
+    <!-- Horn: drops from left side of face, angled down-left to a point -->
+    <path d="M 14 24 L 4 28 L 8 30 L 14 28"/>
+    <!-- Heel step: right side drops down from face -->
+    <path d="M 53 20 L 58 20 L 58 28 L 53 28"/>
+    <!-- Body: tapers inward from face bottom to waist -->
+    <path d="M 17 28 Q 20 28 22 34 L 24 40"/>
+    <path d="M 50 28 Q 47 28 44 34 L 42 40"/>
+    <!-- Feet: splay outward from waist -->
+    <path d="M 24 40 L 20 48 L 16 52 L 48 52 L 44 48 L 42 40"/>
+    <!-- Arch between feet -->
+    <path d="M 22 52 Q 32 43 42 52"/>
+    <!-- Bottom connecting line -->
+    <line x1="16" y1="52" x2="48" y2="52"/>
+  </g>
+</svg>

@@ -1,0 +1,47 @@
+# docker-compose.yml — FORGE standalone deployment
+# Pulls pre-built image from GitHub Container Registry — no build needed.
+#
+# Usage:
+#   1. Save this file as docker-compose.yml
+#   2. (Optional) Create a .env file — see DEPLOY.md for details
+#   3. docker compose up -d
+services:
+  forge:
+    image: ghcr.io/vission01/forge:latest
+    container_name: forge
+    ports:
+      - "9090:9090"          # dashboard + /v1/* (OpenAI-compatible) + /admin/v1/*
+      # - "18080:18080"      # uncomment to reach the internal vLLM directly
+    env_file:
+      - path: .env
+        required: false     # no .env => FORGE_API_KEY unset => admin routes open
+    environment:
+      # First vLLM load on a new GPU compiles CUDA kernels — needs extra time.
+      # Can be reduced to 600 after the first successful model load.
+      FORGE_STARTUP_TIMEOUT_SECONDS: "1200"
+    volumes:
+      - forge-data:/data     # registry, state, model weights (survives restarts)
+    restart: unless-stopped
+    # Uncomment and edit the networks section below to connect Forge to
+    # other containers (Open WebUI, n8n, etc.) on existing Docker networks.
+    # networks:
+    #   - default
+    #   - ai-network            # Open WebUI network
+    #   - n8n-custom_n8n-network  # n8n network
+    deploy:
+       resources:
+         reservations:
+           devices:
+             - driver: nvidia
+               count: 1
+               capabilities: [gpu]
+
+volumes:
+  forge-data:
+
+# Uncomment if you enabled networks above:
+# networks:
+#   ai-network:
+#     external: true
+#   n8n-custom_n8n-network:
+#     external: true
