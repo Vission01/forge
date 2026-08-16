@@ -125,17 +125,6 @@ input:focus,textarea:focus{outline:none;border-color:var(--accent)}
     </table>
     <div id="regErr" class="hint" style="margin-top:8px"></div>
   </section>
-
-  <section class="card">
-    <h2>Pull weights <span class="hint" style="text-transform:none;letter-spacing:0">(POST /admin/v1/pull &mdash; streamed ndjson)</span></h2>
-    <div class="row">
-      <label>alias <input id="pullAlias" style="width:160px" placeholder="my-model"></label>
-      <button id="pullBtn" class="primary">Start pull</button>
-      <button id="pullCancel">Abort</button>
-      <span id="pullState" class="hint"></span>
-    </div>
-    <div class="log" id="pullLog" style="margin-top:10px;display:none"></div>
-  </section>
 </main>
 
 <!-- Manifest editor modal -->
@@ -363,7 +352,9 @@ async function refreshRegistry(){
       if (act==="delete"){ if (!confirm("Delete manifest "+alias+"? (weights are kept on disk)")) return;
         await api("/admin/v1/registry/"+encodeURIComponent(alias),{method:"DELETE"});
         refreshRegistry(); refreshStatus(); }
-      if (act==="pull"){ $("pullAlias").value = alias; startPull(); }
+      if (act==="pull"){ b.disabled=true; b.textContent="pulling\u2026";
+        await api("/admin/v1/activate",{method:"POST",body:{alias}});
+        refreshStatus(); refreshRegistry(); }
       if (act==="edit"){ openEditModal(alias); }
     };
   });
@@ -476,51 +467,6 @@ $("addModelBtn").onclick = openCreateModal;
 $("modalCancel").onclick = closeModal;
 $("modalSave").onclick = saveModal;
 $("modelModal").onclick = (e)=>{ if (e.target===$("modelModal")) closeModal(); };
-
-// ---- Pull ---- //
-let pullAbort = null;
-async function startPull(){
-  const alias = $("pullAlias").value.trim();
-  if (!alias){ alert("Enter an alias to pull"); return; }
-  const logEl = $("pullLog"); logEl.style.display="block"; logEl.textContent="";
-  $("pullBtn").disabled = true; $("pullCancel").disabled=false;
-  $("pullState").textContent = "downloading\u2026";
-  const {base, key} = cfg();
-  const init = {method:"POST", headers:{"Content-Type":"application/json"},
-                body: JSON.stringify({alias})};
-  if (key) init.headers["Authorization"] = "Bearer "+key;
-  pullAbort = new AbortController();
-  init.signal = pullAbort.signal;
-  try {
-    const resp = await fetch(base+"/admin/v1/pull", init);
-    if (!resp.ok || !resp.body){
-      const t = await resp.text();
-      logEl.textContent = t; return;
-    }
-    const reader = resp.body.getReader();
-    const dec = new TextDecoder();
-    let buf = "";
-    while (true){
-      const {done, value} = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, {stream:true});
-      let i;
-      while ((i = buf.indexOf("\n")) >= 0){
-        const line = buf.slice(0, i); buf = buf.slice(i+1);
-        if (line.trim()) logEl.textContent += line + "\n";
-      }
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-    if (buf.trim()) logEl.textContent += buf.trim() + "\n";
-    $("pullState").textContent = "done";
-  } catch(e){
-    $("pullState").textContent = (e.name==="AbortError") ? "aborted" : "error: "+e;
-  } finally {
-    $("pullBtn").disabled = false; $("pullCancel").disabled = true;
-    pullAbort = null; refreshRegistry(); refreshStats();
-  }
-}
-$("pullCancel").onclick = ()=>{ if (pullAbort) pullAbort.abort(); };
 
 $("saveCfg").onclick = ()=> saveCfg();
 loadCfg(); saveCfg();
