@@ -60,6 +60,8 @@ input:focus,textarea:focus{outline:none;border-color:var(--accent)}
 .actions button{margin-right:6px}
 .progress-bar{background:var(--panel2);border-radius:4px;height:8px;margin-top:6px;overflow:hidden}
 .progress-bar .fill{background:var(--accent);height:100%;border-radius:4px;transition:width .3s}
+.progress-bar .fill.indeterminate{width:30%;animation:slide 1.5s ease-in-out infinite}
+@keyframes slide{0%{margin-left:0}50%{margin-left:70%}100%{margin-left:0}}
 /* Modal */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;
   justify-content:center;align-items:center}
@@ -276,6 +278,7 @@ async function refreshDashboard(){
     if (st.state === "DOWNLOADING" && st.download_progress){
       const dp = st.download_progress;
       $("downloadBar").style.display = "block";
+      $("downloadFill").className = "fill";
       if (dp.total_bytes && dp.total_bytes > 0){
         const pct = Math.min(100, (dp.downloaded_bytes / dp.total_bytes * 100)).toFixed(1);
         $("downloadFill").style.width = pct + "%";
@@ -284,8 +287,14 @@ async function refreshDashboard(){
         $("downloadFill").style.width = "0%";
         $("downloadLabel").textContent = (dp.file||"Downloading") + " \u2014 " + fmtBytes(dp.downloaded_bytes);
       }
+    } else if (st.state === "LOADING") {
+      $("downloadBar").style.display = "block";
+      $("downloadFill").className = "fill indeterminate";
+      $("downloadFill").style.width = "";
+      $("downloadLabel").textContent = "Loading model into GPU\u2026";
     } else {
       $("downloadBar").style.display = "none";
+      $("downloadFill").className = "fill";
     }
 
     // Error
