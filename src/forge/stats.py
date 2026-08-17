@@ -45,6 +45,71 @@ async def query_gpu_info() -> dict:
         return {}
 
 
+def estimate_weights_mb(weights_dir) -> Optional[int]:
+    """Estimate model weight size in MB by summing weight files on disk."""
+    from pathlib import Path
+    import os as _os
+    d = Path(weights_dir)
+    if not d.is_dir():
+        return None
+    _WEIGHT_EXTS = {".safetensors", ".bin", ".pt", ".pth", ".gguf", ".ggml"}
+    total = 0
+    for root, dirs, files in _os.walk(d):
+        dirs[:] = [dd for dd in dirs if not dd.startswith(".")]
+        for f in files:
+            if any(f.endswith(ext) for ext in _WEIGHT_EXTS):
+                try:
+                    total += _os.path.getsize(_os.path.join(root, f))
+                except OSError:
+                    pass
+    return int(total / (1024 * 1024)) if total > 0 else None
+
+
+async def check_vram_fit(weights_dir, overhead_mb: int = 2048) -> dict:
+    """Pre-flight VRAM check. Returns dict with fit assessment.
+
+    overhead_mb: estimated overhead for CUDA context, KV cache init, etc.
+    Returns: {fits: bool, weights_mb, free_mb, total_mb, gpu_name, message}
+    """
+    gpu = await query_gpu_info()
+    if not gpu:
+        return {"fits": True, "message": "GPU info unavailable — skipping VRAM check"}
+
+    weights_mb = estimate_weights_mb(weights_dir)
+    if weights_mb is None:
+        return {"fits": True, "message": "No weight files found — skipping VRAM check"}
+
+    free_mb = gpu["vram_total_mb"] - gpu["vram_used_mb"]
+    needed_mb = weights_mb + overhead_mb
+
+    result = {
+        "weights_mb": weights_mb,
+        "overhead_mb": overhead_mb,
+        "needed_mb": needed_mb,
+        "free_mb": free_mb,
+        "total_mb": gpu["vram_total_mb"],
+        "used_mb": gpu["vram_used_mb"],
+        "gpu_name": gpu.get("gpu_name"),
+    }
+
+    if needed_mb > free_mb:
+        result["fits"] = False
+        result["message"] = (
+            f"Model weights ({weights_mb:,} MB) + overhead ({overhead_mb:,} MB) = "
+            f"{needed_mb:,} MB needed, but only {free_mb:,} MB free "
+            f"on {gpu.get('gpu_name', 'GPU')} ({gpu['vram_used_mb']:,} / {gpu['vram_total_mb']:,} MB used). "
+            f"Free up VRAM or choose a smaller model."
+        )
+    else:
+        result["fits"] = True
+        result["message"] = (
+            f"VRAM OK: {weights_mb:,} MB weights + {overhead_mb:,} MB overhead = "
+            f"{needed_mb:,} MB needed, {free_mb:,} MB free."
+        )
+
+    return result
+
+
 # Backward compat wrapper
 async def query_vram_mb() -> Tuple[Optional[int], Optional[int]]:
     info = await query_gpu_info()

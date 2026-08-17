@@ -207,6 +207,16 @@ class LifecycleManager:
                 self._download_progress = None
 
             # ---- LOADING ---- #
+            # Pre-flight VRAM check: fail fast if model won't fit
+            from forge.stats import check_vram_fit
+            weights_dir = self.registry.weights_dir(manifest)
+            vram_check = await check_vram_fit(str(weights_dir))
+            log.info("VRAM pre-flight: %s", vram_check.get("message", ""))
+            if not vram_check.get("fits", True):
+                self.last_error = f"VRAM pre-flight failed: {vram_check['message']}"
+                self._set(ST_ERROR, alias=alias)
+                raise LoadFailed(self.last_error)
+
             self._set(ST_LOADING, alias=alias,
                       served_model_name=manifest.served_model_name)
             await self._launch(manifest)

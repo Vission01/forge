@@ -56,6 +56,19 @@ def create_app(cfg: ForgeConfig | None = None) -> FastAPI:
         await lifecycle.start_background()
         log.info("FORGE listening on %s:%s (vLLM internal port %s), data_dir=%s",
                  cfg.host, cfg.port, cfg.internal_port, cfg.data_dir)
+        # Log GPU info on startup
+        from forge.stats import query_gpu_info
+        gpu = await query_gpu_info()
+        if gpu:
+            free = gpu['vram_total_mb'] - gpu['vram_used_mb']
+            log.info("GPU: %s — VRAM %s/%s MB (%s MB free), %s°C",
+                     gpu.get('gpu_name', '?'),
+                     gpu.get('vram_used_mb', '?'),
+                     gpu.get('vram_total_mb', '?'),
+                     free,
+                     gpu.get('gpu_temp_c', '?'))
+        else:
+            log.warning("GPU: nvidia-smi unavailable — cannot detect GPU")
 
     @app.on_event("shutdown")
     async def _shutdown():
