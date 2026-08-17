@@ -37,6 +37,15 @@ tr:last-child td{border-bottom:none}
 .chip.IDLE{background:#232838;color:var(--dim)}
 .chip.READY{background:#0e2a1c;color:var(--ok);border-color:#1c5a38}
 .chip.DOWNLOADING,.chip.LOADING{background:#2c2410;color:var(--warn);border-color:#5a451c}
+.chip.LOADING{animation:border-spin 2s linear infinite;border-width:2px;
+  border-style:solid;border-color:#5a451c transparent #5a451c #5a451c}
+@keyframes border-spin{
+  0%{border-color:#5a451c transparent #5a451c #5a451c}
+  25%{border-color:#5a451c #5a451c transparent #5a451c}
+  50%{border-color:#5a451c #5a451c #5a451c transparent}
+  75%{border-color:transparent #5a451c #5a451c #5a451c}
+  100%{border-color:#5a451c transparent #5a451c #5a451c}
+}
 .chip.UNLOADING{background:#20303f;color:#7fc4ff;border-color:#2c4a66}
 .chip.ERROR{background:#341512;color:var(--err);border-color:#6a2420}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:middle}
@@ -60,8 +69,6 @@ input:focus,textarea:focus{outline:none;border-color:var(--accent)}
 .actions button{margin-right:6px}
 .progress-bar{background:var(--panel2);border-radius:4px;height:8px;margin-top:6px;overflow:hidden}
 .progress-bar .fill{background:var(--accent);height:100%;border-radius:4px;transition:width .3s}
-.progress-bar .fill.indeterminate{width:40%;animation:sweep 2s ease-in-out infinite}
-@keyframes sweep{0%{margin-left:-40%}100%{margin-left:100%}}
 /* Modal */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;
   justify-content:center;align-items:center}
@@ -288,10 +295,7 @@ async function refreshDashboard(){
         $("downloadLabel").textContent = (dp.file||"Downloading") + " \u2014 " + fmtBytes(dp.downloaded_bytes);
       }
     } else if (st.state === "LOADING") {
-      $("downloadBar").style.display = "block";
-      $("downloadFill").className = "fill indeterminate";
-      $("downloadFill").style.width = "";
-      $("downloadLabel").textContent = "Loading model into GPU\u2026";
+      $("downloadBar").style.display = "none";
     } else {
       $("downloadBar").style.display = "none";
       $("downloadFill").className = "fill";
