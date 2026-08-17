@@ -60,8 +60,8 @@ input:focus,textarea:focus{outline:none;border-color:var(--accent)}
 .actions button{margin-right:6px}
 .progress-bar{background:var(--panel2);border-radius:4px;height:8px;margin-top:6px;overflow:hidden}
 .progress-bar .fill{background:var(--accent);height:100%;border-radius:4px;transition:width .3s}
-.progress-bar .fill.indeterminate{width:30%;animation:slide 1.5s ease-in-out infinite}
-@keyframes slide{0%{margin-left:0}50%{margin-left:70%}100%{margin-left:0}}
+.progress-bar .fill.indeterminate{width:40%;animation:sweep 2s ease-in-out infinite}
+@keyframes sweep{0%{margin-left:-40%}100%{margin-left:100%}}
 /* Modal */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;
   justify-content:center;align-items:center}
