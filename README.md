@@ -15,6 +15,8 @@ A FastAPI gateway for vLLM — manage and serve LLMs with an OpenAI-compatible A
 - **One model at a time** — clean state machine (IDLE → DOWNLOADING → LOADING → READY)
 - **Tool calling** — supports `tool_choice: "auto"` for agent workflows
 - **GPU monitoring** — real-time VRAM usage, GPU utilization %, temperature
+- **VRAM pre-flight check** — fails fast with a clear message if a model won't fit, instead of waiting 20 minutes for OOM
+- **Version tracking** — dashboard shows current vLLM version with update-available badge
 - **API key management** — generate/clear keys from the dashboard, secured by a master password
 
 ## Quick Deploy

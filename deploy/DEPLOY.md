@@ -277,6 +277,17 @@ If you get OOM errors:
 2. Lower `max-model-len`
 3. Lower `gpu-memory-utilization`
 
+### VRAM Pre-Flight Check
+
+Forge automatically checks whether a model will fit in available VRAM **before** attempting to load it. If the model weights + 2 GB overhead exceed free VRAM, the load fails instantly with a clear error message instead of waiting for vLLM to OOM after 20 minutes.
+
+On startup, Forge also logs the detected GPU and available VRAM:
+```
+GPU: NVIDIA GeForce RTX 5090 — VRAM 652/32607 MB (31955 MB free), 33°C
+```
+
+If you see a pre-flight failure, check for other processes using VRAM (e.g. Ollama with a loaded model, another vLLM instance, or a training job).
+
 ### GGUF Models
 
 vLLM has limited GGUF support. **GGUF-only repos** (like `unsloth/Qwen3.8-27B-GGUF`) that contain only the `.gguf` file without a `config.json` and tokenizer files **will not work** with vLLM. Use NVFP4, AWQ, or other HuggingFace-format quantizations instead. For GGUF models, use Ollama/llama.cpp.
@@ -294,12 +305,13 @@ vLLM has limited GGUF support. **GGUF-only repos** (like `unsloth/Qwen3.8-27B-GG
 | POST | `/v1/completions` | Text completion |
 | POST | `/v1/embeddings` | Embeddings |
 | GET | `/admin/v1/status` | Current state, active model, download progress |
-| GET | `/admin/v1/stats` | Uptime, request counts, GPU metrics |
+| GET | `/admin/v1/stats` | Uptime, request counts, GPU metrics (VRAM, utilization, temp) |
+| GET | `/admin/v1/version` | Current + latest vLLM version, update-available flag |
 | GET | `/admin/v1/registry` | List all manifests |
 | POST | `/admin/v1/registry` | Create a manifest |
 | PATCH | `/admin/v1/registry/{alias}` | Update manifest fields (idle timeout) |
 | DELETE | `/admin/v1/registry/{alias}` | Delete a manifest |
-| POST | `/admin/v1/activate` | Load a model into GPU (non-blocking) |
+| POST | `/admin/v1/activate` | Load a model into GPU (non-blocking, VRAM pre-flight check) |
 | POST | `/admin/v1/unload` | Unload model from GPU |
 | POST | `/admin/v1/api-key` | Generate/set API key (requires master password) |
 | DELETE | `/admin/v1/api-key` | Clear API key (requires master password) |
