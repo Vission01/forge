@@ -28,6 +28,33 @@ router = APIRouter()
 
 MODELS_PATH_RE = re.compile(r"^/v1/models/([^/]+)$")
 
+# Module-level shared httpx client — created lazily on first use,
+# closed on app shutdown.  Avoids creating a new TCP connection per request.
+_shared_client: Optional[httpx.AsyncClient] = None
+
+
+def _get_client() -> httpx.AsyncClient:
+    """Return the module-level shared httpx client, creating it if needed."""
+    global _shared_client
+    if _shared_client is None or _shared_client.is_closed:
+        _shared_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(1800.0, connect=10.0),
+            limits=httpx.Limits(
+                max_connections=100,
+                max_keepalive_connections=20,
+                keepalive_expiry=120,
+            ),
+        )
+    return _shared_client
+
+
+async def close_shared_client() -> None:
+    """Shut down the shared httpx client (call from app shutdown)."""
+    global _shared_client
+    if _shared_client is not None and not _shared_client.is_closed:
+        await _shared_client.aclose()
+    _shared_client = None
+
 
 def _ctx(request: Request) -> tuple:
     return (
@@ -130,6 +157,7 @@ async def proxy_post(
         alias = manifest.alias
 
     lifecycle.note_request_start(alias)
+    _stream_owns_cleanup = False
     try:
         try:
             await lifecycle.ensure_ready(alias)
@@ -148,14 +176,13 @@ async def proxy_post(
         assert base is not None
         url = base + path
         target_url = f"{url}"
-        client = httpx.AsyncClient(timeout=httpx.Timeout(1800.0, connect=10.0))
+        client = _get_client()
         try:
             req = client.build_request(
                 "POST", target_url, content=body, headers=_hdrs(request)
             )
             upstream = await client.send(req, stream=True)
         except httpx.HTTPError as exc:
-            await client.aclose()
             log.error("proxy %s: upstream error: %s", path, exc)
             return JSONResponse(
                 status_code=502,
@@ -175,12 +202,16 @@ async def proxy_post(
                 try:
                     async for chunk in upstream.aiter_bytes():
                         yield chunk
+                except Exception as exc:
+                    log.error("proxy %s: stream read error for model=%s: %s",
+                              path, manifest.served_model_name, exc)
                 finally:
                     await upstream.aclose()
-                    await client.aclose()
+                    lifecycle.note_request_end()
                     log.debug("proxy %s: %s %s model=%s -> %s (stream, client closed)",
                               "POST", path, alias, manifest.served_model_name,
                               upstream.status_code)
+            _stream_owns_cleanup = True
             log.debug("proxy %s: %s %s model=%s -> %s (stream)",
                       "POST", path, alias, manifest.served_model_name,
                       upstream.status_code)
@@ -198,7 +229,6 @@ async def proxy_post(
         async for c in upstream.aiter_bytes():
             chunks.append(c)
         await upstream.aclose()
-        await client.aclose()
         payload = b"".join(chunks)
         log.debug("proxy %s: %s %s model=%s -> %s", "POST", path, alias,
                   manifest.served_model_name, upstream.status_code)
@@ -212,7 +242,8 @@ async def proxy_post(
             },
         )
     finally:
-        lifecycle.note_request_end()
+        if not _stream_owns_cleanup:
+            lifecycle.note_request_end()
 
 
 async def proxy_get_passthrough(

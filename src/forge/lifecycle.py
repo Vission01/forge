@@ -165,10 +165,15 @@ class LifecycleManager:
             if self.state == ST_READY and self.alias != alias:
                 await self._unload("swap")
 
-            if self.state in (ST_ERROR, ST_LOADING, ST_UNLOADING) and self._proc is not None:
-                # settle any dying/lingering subprocess before (re)launching
-                await self._kill(self._proc)
-                self._proc = None
+            if self.state in (ST_ERROR, ST_LOADING, ST_UNLOADING):
+                # Recover from ERROR or settle a dying/lingering subprocess
+                if self._proc is not None:
+                    await self._kill(self._proc)
+                    self._proc = None
+                # Clear error state so we can retry
+                if self.state == ST_ERROR:
+                    log.info("clearing ERROR state to retry load for %s", alias)
+                    self.last_error = None
 
             # ---- DOWNLOADING ---- #
             if not self.registry.weights_present(manifest):

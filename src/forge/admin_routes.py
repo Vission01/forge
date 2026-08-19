@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from forge.catalog import get_catalog, get_catalog_entry
 from forge.downloader import ProgressChannel, download_manifest
 from forge.registry import Manifest, Registry
 from forge.stats import RequestCounter, query_vram_mb, query_gpu_info
@@ -27,6 +29,36 @@ def _st(request: Request):
         request.app.state.lifecycle,
         request.app.state.counter,
     )
+
+
+# ---- API key persistence ---- #
+
+def _api_key_path(cfg) -> str:
+    return os.path.join(cfg.data_dir, "state", "api_key.json")
+
+
+def load_persisted_api_key(cfg) -> Optional[str]:
+    """Load API key from disk on startup. Returns None if not found."""
+    p = _api_key_path(cfg)
+    try:
+        with open(p) as f:
+            data = json.load(f)
+        return data.get("api_key")
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+
+
+def _persist_api_key(cfg, key: Optional[str]) -> None:
+    """Write API key to disk for persistence across restarts."""
+    p = _api_key_path(cfg)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    tmp = p + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            json.dump({"api_key": key}, f)
+        os.replace(tmp, p)
+    except OSError:
+        pass  # best-effort; env var still works as fallback
 
 
 # =============== registry ===============
@@ -83,8 +115,12 @@ async def delete_registry(alias: str, request: Request):
 
 @router.patch("/admin/v1/registry/{alias}")
 async def patch_registry(alias: str, request: Request):
-    """Update mutable fields of an existing manifest (currently: idle_timeout_seconds)."""
-    _, reg, _, _ = _st(request)
+    """Update mutable fields of an existing manifest.
+
+    Supported fields: idle_timeout_seconds, engine_args, served_model_name,
+    source (repo, file).
+    """
+    _, reg, lc, _ = _st(request)
     manifest = reg.get(alias)
     if manifest is None:
         raise HTTPException(status_code=404, detail=f"unknown alias {alias!r}")
@@ -99,9 +135,40 @@ async def patch_registry(alias: str, request: Request):
             raise HTTPException(status_code=400, detail="idle_timeout_seconds must be an integer >= 30")
         manifest.idle_timeout_seconds = val
         changed = True
+    if "engine_args" in body:
+        val = body["engine_args"]
+        if not isinstance(val, dict):
+            raise HTTPException(status_code=400, detail="engine_args must be an object")
+        # Validate all values are strings
+        for k, v in val.items():
+            if not isinstance(k, str) or not isinstance(v, str):
+                raise HTTPException(status_code=400,
+                    detail=f"engine_args keys and values must be strings")
+        manifest.engine_args = val
+        changed = True
+    if "served_model_name" in body:
+        val = body["served_model_name"]
+        if not isinstance(val, str) or not val.strip():
+            raise HTTPException(status_code=400, detail="served_model_name must be a non-empty string")
+        manifest.served_model_name = val
+        changed = True
+    if "source" in body:
+        val = body["source"]
+        if not isinstance(val, dict) or "repo" not in val:
+            raise HTTPException(status_code=400, detail="source must be an object with 'repo'")
+        from forge.registry import Source
+        try:
+            manifest.source = Source(**val)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"invalid source: {exc}")
+        changed = True
     if not changed:
-        raise HTTPException(status_code=400, detail="no supported fields to update (supported: idle_timeout_seconds)")
-    reg.save(manifest)
+        raise HTTPException(status_code=400,
+            detail="no supported fields to update (supported: idle_timeout_seconds, engine_args, served_model_name, source)")
+    try:
+        reg.save(manifest)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     return JSONResponse(status_code=200, content=manifest.model_dump())
 
 
@@ -113,8 +180,13 @@ async def get_status(request: Request):
 
 @router.get("/admin/v1/version")
 async def get_version(request: Request):
-    """Return current and latest vLLM version."""
+    """Return current and latest vLLM version (cached 1 hour)."""
     import httpx as _httpx
+    import time as _time
+    global _version_cache_time, _version_cache_data
+    now = _time.monotonic()
+    if now - _version_cache_time < 3600 and _version_cache_data:
+        return JSONResponse(status_code=200, content=_version_cache_data)
     current = None
     try:
         import vllm
@@ -130,11 +202,18 @@ async def get_version(request: Request):
     except Exception:
         pass
     update_available = bool(current and latest and current != latest)
-    return JSONResponse(status_code=200, content={
+    data = {
         "vllm_current": current,
         "vllm_latest": latest,
         "update_available": update_available,
-    })
+    }
+    _version_cache_time = now
+    _version_cache_data = data
+    return JSONResponse(status_code=200, content=data)
+
+
+_version_cache_time: float = 0.0
+_version_cache_data: dict = {}
 
 
 @router.post("/admin/v1/api-key")
@@ -159,6 +238,7 @@ async def set_api_key(request: Request):
     else:
         new_key = "forge-" + _sec.token_urlsafe(32)
     cfg.api_key = new_key
+    _persist_api_key(cfg, new_key)
     return JSONResponse(status_code=200, content={"api_key": new_key})
 
 
@@ -178,6 +258,7 @@ async def clear_api_key(request: Request):
     if not supplied_pw or not _sec.compare_digest(str(supplied_pw), cfg.master_password):
         raise HTTPException(status_code=403, detail="Invalid master password.")
     cfg.api_key = None
+    _persist_api_key(cfg, None)
     return JSONResponse(status_code=200, content={"api_key": None})
 
 
@@ -384,3 +465,65 @@ async def post_resolve(request: Request):
         raise HTTPException(status_code=400,
                             detail="Could not parse a Hugging Face repo from the given URL/string")
     return JSONResponse(status_code=200, content=result)
+
+
+# =============== catalog ===============
+
+@router.get("/admin/v1/catalog")
+async def get_catalog_list(request: Request):
+    """Return the built-in model catalog (curated for RTX 5090 / 32 GB)."""
+    _, reg, _, _ = _st(request)
+    catalog = get_catalog()
+    # Annotate each entry with whether it's already registered
+    registered_repos = {m.source.repo for m in reg.all().values()}
+    for entry in catalog:
+        entry["registered"] = entry["repo"] in registered_repos
+    return JSONResponse(status_code=200, content=catalog)
+
+
+# =============== storage ===============
+
+@router.get("/admin/v1/storage")
+async def get_storage(request: Request):
+    """Return total weight storage used + per-model breakdown."""
+    _, reg, lc, _ = _st(request)
+    models = []
+    for m in reg.all().values():
+        info = reg.weights_info(m)
+        is_active = (lc.alias == m.alias and lc.state in ("READY", "LOADING", "DOWNLOADING"))
+        models.append({
+            "alias": m.alias,
+            "served_model_name": m.served_model_name,
+            "repo": m.source.repo,
+            "downloaded": info["present"],
+            "size_mb": info["size_mb"],
+            "active": is_active,
+        })
+    models.sort(key=lambda x: -(x["size_mb"] or 0))
+    total_mb = reg.total_weights_size_mb()
+    return JSONResponse(status_code=200, content={
+        "total_size_mb": total_mb,
+        "total_size_gb": round(total_mb / 1024, 1) if total_mb else 0,
+        "models": models,
+    })
+
+
+@router.delete("/admin/v1/storage/{alias}")
+async def delete_weights(alias: str, request: Request):
+    """Delete downloaded weights for a model. Unloads first if active."""
+    _, reg, lc, _ = _st(request)
+    manifest = reg.get(alias)
+    if manifest is None:
+        raise HTTPException(status_code=404, detail=f"unknown alias {alias!r}")
+    # If active, unload first
+    async with lc._state_lock:
+        is_active = (lc.alias == alias and lc.state in ("READY", "LOADING", "DOWNLOADING"))
+    if is_active:
+        await lc.unload_forced()
+    deleted = reg.delete_weights(manifest)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"no weights found for alias {alias!r}")
+    return JSONResponse(status_code=200, content={
+        "deleted": True,
+        "alias": alias,
+    })

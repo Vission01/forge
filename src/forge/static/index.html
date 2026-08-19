@@ -56,9 +56,12 @@ button:hover{border-color:var(--accent)}
 button:disabled{opacity:.45;cursor:not-allowed}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 button.sm{padding:3px 10px;font-size:12px}
+button.danger{background:var(--err);border-color:var(--err);color:#fff}
+button.danger:hover{background:#c9433a;border-color:#c9433a}
 input,textarea{background:#10131b;border:1px solid var(--border);color:var(--fg);
   border-radius:7px;padding:7px 10px;font-size:13px;width:100%}
 input:focus,textarea:focus{outline:none;border-color:var(--accent)}
+input:disabled{opacity:.6;cursor:not-allowed}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
 @media(max-width:900px){.grid3{grid-template-columns:1fr}}
@@ -86,6 +89,48 @@ input:focus,textarea:focus{outline:none;border-color:var(--accent)}
 .modal .btn-row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 .modal .btn-row button{min-width:80px}
 .modal .error-msg{color:var(--err);font-size:13px;margin-top:8px;display:none}
+
+/* Storage section */
+.storage-total{font-size:28px;font-weight:700;color:var(--fg);margin-bottom:6px}
+.storage-total .unit{font-size:16px;font-weight:400;color:var(--dim)}
+.storage-stacked-bar{display:flex;height:18px;border-radius:6px;overflow:hidden;
+  background:var(--panel2);margin-bottom:16px;gap:1px}
+.storage-stacked-bar .seg{height:100%;min-width:4px;transition:width .3s}
+.storage-model-list{display:grid;gap:8px}
+.storage-model-row{display:flex;align-items:center;gap:12px;font-size:13px}
+.storage-model-row .name{min-width:160px;font-weight:500}
+.storage-model-row .size{min-width:70px;color:var(--dim);text-align:right}
+.storage-model-row .bar-track{flex:1;height:8px;background:var(--panel2);border-radius:4px;overflow:hidden}
+.storage-model-row .bar-fill{height:100%;border-radius:4px;transition:width .3s}
+.storage-model-row .label-active{font-size:11px;color:var(--ok);font-weight:600;
+  padding:1px 8px;border:1px solid var(--ok);border-radius:999px}
+.storage-model-row button{flex-shrink:0}
+
+/* Catalog section */
+.catalog-filters{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.catalog-filters button{border-radius:999px;padding:4px 14px;font-size:12px;font-weight:500}
+.catalog-filters button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.catalog-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:1100px){.catalog-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:700px){.catalog-grid{grid-template-columns:1fr}}
+.catalog-card{background:var(--panel2);border:1px solid var(--border);border-radius:10px;
+  padding:16px;transition:border-color .2s,box-shadow .2s;display:flex;flex-direction:column}
+.catalog-card:hover{border-color:var(--accent);box-shadow:0 0 0 1px rgba(79,140,255,.15)}
+.catalog-card .cc-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.catalog-card .cc-name{font-size:15px;font-weight:600}
+.catalog-card .cc-badge{display:inline-block;padding:2px 7px;border-radius:5px;
+  font-size:11px;font-weight:600;background:#232838;color:var(--dim);border:1px solid var(--border)}
+.catalog-card .cc-badge.vram{background:#1a2035;color:var(--accent);border-color:#2a3a60}
+.catalog-card .cc-badge.quant{background:#201a2a;color:#b99aff;border-color:#3a2a55}
+.catalog-card .cc-desc{font-size:13px;color:var(--dim);margin-bottom:10px;flex:1;
+  line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.catalog-card .cc-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
+.catalog-card .cc-tag{display:inline-block;padding:1px 7px;border-radius:999px;
+  font-size:10px;background:#1a2030;color:var(--dim);border:1px solid var(--border)}
+.catalog-card .cc-actions{margin-top:auto}
+.catalog-card .cc-added{display:inline-flex;align-items:center;gap:4px;
+  padding:5px 14px;border-radius:7px;font-size:12px;font-weight:600;
+  background:#0e2a1c;color:var(--ok);border:1px solid #1c5a38;cursor:default}
 </style>
 </head>
 <body>
@@ -145,11 +190,33 @@ input:focus,textarea:focus{outline:none;border-color:var(--accent)}
     <table>
       <thead><tr>
         <th>alias</th><th>served model name</th><th>source</th>
-        <th>downloaded</th><th>idle timeout</th><th>actions</th>
+        <th>size</th><th>downloaded</th><th>idle timeout</th><th>actions</th>
       </tr></thead>
-      <tbody id="regBody"><tr><td colspan="6" class="hint">loading&hellip;</td></tr></tbody>
+      <tbody id="regBody"><tr><td colspan="7" class="hint">loading&hellip;</td></tr></tbody>
     </table>
     <div id="regErr" class="hint" style="margin-top:8px"></div>
+  </section>
+
+  <!-- Storage -->
+  <section class="card" id="storageCard" style="display:none">
+    <h2>Storage</h2>
+    <div id="storageContent">
+      <span class="hint">loading&hellip;</span>
+    </div>
+  </section>
+
+  <!-- Model Catalog -->
+  <section class="card" id="catalogCard" style="display:none">
+    <h2>Model Catalog</h2>
+    <div class="catalog-filters" id="catalogFilters">
+      <button class="sm active" data-cat="all">All</button>
+      <button class="sm" data-cat="general">General</button>
+      <button class="sm" data-cat="coding">Coding</button>
+      <button class="sm" data-cat="reasoning">Reasoning</button>
+    </div>
+    <div class="catalog-grid" id="catalogGrid">
+      <span class="hint">loading&hellip;</span>
+    </div>
   </section>
 </main>
 
@@ -251,12 +318,20 @@ function fmtBytes(n){ if (n===null||n===undefined) return "\u2014";
 function fmtDur(s){ if (s===null||s===undefined) return "\u2014";
   s=Math.floor(s); const h=Math.floor(s/3600), m=Math.floor(s%3600/60);
   return (h?h+"h ":"") + m+"m "+(s%60)+"s"; }
+function fmtMb(mb){ if (mb===null||mb===undefined) return "\u2014";
+  return (mb/1024).toFixed(1)+" GB"; }
 function chipEl(state){
   const c=document.createElement("span");
   c.className="chip "+(state||"IDLE");
   c.textContent=state||"IDLE";
   return c;
 }
+
+// Storage color palette
+const STORAGE_COLORS = [
+  "#4f8cff","#38c172","#f5a623","#e5534b","#b99aff",
+  "#ff6b9d","#4fd1c5","#f0c040","#7fc4ff","#ff9f43"
+];
 
 // ---- Unified refresh ---- //
 async function refreshDashboard(){
@@ -336,14 +411,14 @@ async function refreshRegistry(){
   const activeState = (sr.data || {}).state || "IDLE";
   const body = $("regBody");
   if (r.status === 401){
-    body.innerHTML = '<tr><td colspan="6" class="hint">unauthorized</td></tr>'; return; }
+    body.innerHTML = '<tr><td colspan="7" class="hint">unauthorized</td></tr>'; return; }
   if (r.status !== 200){
     $("regErr").textContent = "registry error ("+r.status+"): "+((r.data&&r.data.detail)||"");
     return;
   }
   $("regErr").textContent = "";
   const list = r.data || [];
-  if (!list.length){ body.innerHTML = '<tr><td colspan="6" class="hint">no manifests yet \u2014 click + Add Model above</td></tr>'; return; }
+  if (!list.length){ body.innerHTML = '<tr><td colspan="7" class="hint">no manifests yet \u2014 click + Add Model above</td></tr>'; return; }
   body.innerHTML = "";
   for (const m of list){
     const tr = document.createElement("tr");
@@ -358,10 +433,12 @@ async function refreshRegistry(){
     } else if (m.downloaded) {
       actionBtn = "<button data-act='activate' data-alias='"+esc(m.alias)+"'>Activate</button>";
     }
+    const sizeDisplay = fmtMb(m.size_mb);
     tr.innerHTML =
       "<td><code>"+esc(m.alias)+"</code></td>"+
       "<td><code>"+esc(m.served_model_name)+"</code></td>"+
       "<td class='mono'>"+esc(src)+"</td>"+
+      "<td class='mono' style='white-space:nowrap'>"+esc(sizeDisplay)+"</td>"+
       "<td>"+(m.downloaded?'<span class="dot ok"></span>yes':'<span class="dot miss"></span>no')+"</td>"+
       "<td><input type='number' min='1' step='1' data-alias='"+esc(m.alias)+"' data-field='idle' value='"+(m.idle_timeout_seconds/60)+"' style='width:60px;text-align:center'> min</td>"+
       "<td class='actions'>"+
@@ -395,13 +472,178 @@ async function refreshRegistry(){
         await api("/admin/v1/registry/"+encodeURIComponent(alias),{method:"DELETE"});
         refreshRegistry(); refreshDashboard(); }
       if (act==="pull"){ b.disabled=true; b.textContent="pulling\u2026";
-        await api("/admin/v1/activate",{method:"POST",body:{alias}});
+        await api("/admin/v1/pull",{method:"POST",body:{alias}});
         refreshDashboard(); refreshRegistry(); }
       if (act==="edit"){ openEditModal(alias); }
     };
   });
 }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+// ---- Storage ---- //
+async function refreshStorage(){
+  try {
+    const r = await api("/admin/v1/storage");
+    if (r.status === 401 || r.status !== 200){
+      $("storageCard").style.display = "none";
+      return;
+    }
+    const d = r.data || {};
+    const models = d.models || [];
+    const totalGb = d.total_size_gb ?? (d.total_size_mb ? (d.total_size_mb/1024).toFixed(1) : 0);
+    const totalMb = d.total_size_mb || 0;
+    $("storageCard").style.display = "";
+
+    let html = "";
+    // Total
+    html += '<div class="storage-total">' + esc(Number(totalGb).toFixed(1)) + ' <span class="unit">GB used</span></div>';
+
+    // Stacked bar
+    if (models.length && totalMb > 0){
+      html += '<div class="storage-stacked-bar">';
+      models.forEach((m, i)=>{
+        const pct = Math.max(0.5, (m.size_mb||0)/totalMb*100);
+        const color = STORAGE_COLORS[i % STORAGE_COLORS.length];
+        html += '<div class="seg" style="width:'+pct.toFixed(1)+'%;background:'+color+'" title="'+esc(m.alias)+': '+fmtMb(m.size_mb)+'"></div>';
+      });
+      html += '</div>';
+    }
+
+    // Model list
+    html += '<div class="storage-model-list">';
+    if (!models.length){
+      html += '<span class="hint">No downloaded models.</span>';
+    }
+    models.forEach((m, i)=>{
+      const color = STORAGE_COLORS[i % STORAGE_COLORS.length];
+      const pct = totalMb > 0 ? ((m.size_mb||0)/totalMb*100) : 0;
+      html += '<div class="storage-model-row">';
+      html += '<span class="name"><code>'+esc(m.alias)+'</code></span>';
+      html += '<span class="size">'+fmtMb(m.size_mb)+'</span>';
+      html += '<span class="bar-track"><span class="bar-fill" style="width:'+pct.toFixed(1)+'%;background:'+color+'"></span></span>';
+      if (m.active){
+        html += '<span class="label-active">active</span>';
+        html += '<button class="sm" disabled title="Cannot delete weights for the active model">Delete Weights</button>';
+      } else {
+        html += '<button class="sm danger" data-storage-delete="'+esc(m.alias)+'">Delete Weights</button>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+
+    $("storageContent").innerHTML = html;
+
+    // Bind delete buttons
+    $("storageContent").querySelectorAll("button[data-storage-delete]").forEach(btn=>{
+      btn.onclick = async ()=>{
+        const alias = btn.dataset.storageDelete;
+        if (!confirm("Delete downloaded weights for \""+alias+"\"? You will need to re-download them to use this model.")) return;
+        btn.disabled = true; btn.textContent = "deleting\u2026";
+        await api("/admin/v1/storage/"+encodeURIComponent(alias),{method:"DELETE"});
+        refreshStorage();
+        refreshRegistry();
+      };
+    });
+  } catch(e){
+    $("storageCard").style.display = "none";
+  }
+}
+
+// ---- Catalog ---- //
+let _catalogData = [];
+let _catalogFilter = "all";
+
+async function refreshCatalog(){
+  try {
+    const r = await api("/admin/v1/catalog");
+    if (r.status === 401 || r.status !== 200){
+      $("catalogCard").style.display = "none";
+      return;
+    }
+    _catalogData = r.data || [];
+    $("catalogCard").style.display = "";
+    renderCatalog();
+  } catch(e){
+    $("catalogCard").style.display = "none";
+  }
+}
+
+function renderCatalog(){
+  const grid = $("catalogGrid");
+  const filtered = _catalogFilter === "all"
+    ? _catalogData
+    : _catalogData.filter(m => (m.category||"").toLowerCase() === _catalogFilter);
+
+  if (!filtered.length){
+    grid.innerHTML = '<span class="hint">No models in this category.</span>';
+    return;
+  }
+
+  grid.innerHTML = "";
+  for (const m of filtered){
+    const card = document.createElement("div");
+    card.className = "catalog-card";
+
+    let badges = '<span class="cc-badge">'+esc(m.params||"")+'</span>';
+    if (m.vram_gb != null) badges += '<span class="cc-badge vram">~'+m.vram_gb+' GB</span>';
+    if (m.quantization) badges += '<span class="cc-badge quant">'+esc(m.quantization)+'</span>';
+
+    let tags = "";
+    if (m.tags && m.tags.length){
+      tags = '<div class="cc-tags">' + m.tags.map(t=>'<span class="cc-tag">'+esc(t)+'</span>').join("") + '</div>';
+    }
+
+    let actionHtml;
+    if (m.registered){
+      actionHtml = '<span class="cc-added">Already Added &#10003;</span>';
+    } else {
+      actionHtml = '<button class="sm primary" data-catalog-add="'+esc(m.id)+'">Add to Registry</button>';
+    }
+
+    card.innerHTML =
+      '<div class="cc-header"><span class="cc-name">'+esc(m.name)+'</span>'+badges+'</div>'+
+      '<div class="cc-desc">'+esc(m.description||"")+'</div>'+
+      tags+
+      '<div class="cc-actions">'+actionHtml+'</div>';
+
+    grid.appendChild(card);
+  }
+
+  // Bind add buttons
+  grid.querySelectorAll("button[data-catalog-add]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      const id = btn.dataset.catalogAdd;
+      const m = _catalogData.find(x => x.id === id);
+      if (!m) return;
+      btn.disabled = true; btn.textContent = "adding\u2026";
+      const manifest = {
+        alias: m.suggested_alias || m.id,
+        source: {repo: m.repo, file: null},
+        served_model_name: m.suggested_served_name || m.name,
+        engine_args: m.engine_args || {},
+        idle_timeout_seconds: 600
+      };
+      const r = await api("/admin/v1/registry",{method:"POST",body:manifest});
+      if (r.status === 201 || r.status === 200){
+        refreshCatalog();
+        refreshRegistry();
+      } else {
+        btn.disabled = false; btn.textContent = "Add to Registry";
+        alert("Failed to add: " + ((r.data&&r.data.detail)||r.status));
+      }
+    };
+  });
+}
+
+// Catalog filter buttons
+$("catalogFilters").addEventListener("click", (e)=>{
+  const btn = e.target.closest("button[data-cat]");
+  if (!btn) return;
+  _catalogFilter = btn.dataset.cat;
+  $("catalogFilters").querySelectorAll("button").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  renderCatalog();
+});
 
 // ---- API Key ---- //
 $("genKeyBtn").onclick = async ()=>{
@@ -491,17 +733,23 @@ async function saveModal(){
   try { engineArgs = JSON.parse($("mEngineArgs").value || "{}"); }
   catch(e){ errEl.textContent = "Engine args is not valid JSON: " + e.message; errEl.style.display = "block"; return; }
 
-  const manifest = {alias, source:{repo,file}, served_model_name:served,
-    engine_args:engineArgs, idle_timeout_seconds:idleMins*60};
   $("modalSave").disabled = true;
   if (_editingAlias) {
-    await api("/admin/v1/registry/"+encodeURIComponent(_editingAlias), {method:"DELETE"});
-    const r = await api("/admin/v1/registry", {method:"POST", body:manifest});
-    if (r.status === 201 || r.status === 200){ closeModal(); refreshRegistry(); }
+    // PATCH: send only changed fields
+    const patchBody = {
+      source: {repo, file},
+      served_model_name: served,
+      engine_args: engineArgs,
+      idle_timeout_seconds: idleMins * 60
+    };
+    const r = await api("/admin/v1/registry/"+encodeURIComponent(_editingAlias), {method:"PATCH", body:patchBody});
+    if (r.status === 200){ closeModal(); refreshRegistry(); }
     else { errEl.textContent = "Error: " + ((r.data&&r.data.detail)||r.status); errEl.style.display = "block"; }
   } else {
+    const manifest = {alias, source:{repo,file}, served_model_name:served,
+      engine_args:engineArgs, idle_timeout_seconds:idleMins*60};
     const r = await api("/admin/v1/registry", {method:"POST", body:manifest});
-    if (r.status === 201 || r.status === 200){ closeModal(); refreshRegistry(); }
+    if (r.status === 201 || r.status === 200){ closeModal(); refreshRegistry(); refreshCatalog(); }
     else { errEl.textContent = "Error: " + ((r.data&&r.data.detail)||r.status); errEl.style.display = "block"; }
   }
   $("modalSave").disabled = false;
@@ -536,7 +784,7 @@ $("saveCfg").onclick = ()=>{ saveCfg(); $("saveCfg").textContent="Saved!"; $("sa
 loadCfg(); saveCfg();
 
 async function refreshAll(){
-  await Promise.allSettled([refreshDashboard(), refreshRegistry(), refreshVersion()]);
+  await Promise.allSettled([refreshDashboard(), refreshRegistry(), refreshVersion(), refreshStorage(), refreshCatalog()]);
 }
 refreshAll();
 setInterval(refreshAll, 3000);

@@ -134,7 +134,9 @@ class Registry:
         out: List[dict] = []
         for m in self.all().values():
             d = m.model_dump()
-            d["downloaded"] = self.weights_present(m)
+            info = self.weights_info(m)
+            d["downloaded"] = info["present"]
+            d["size_mb"] = info["size_mb"]
             out.append(d)
         # Stable order by alias
         out.sort(key=lambda x: x["alias"])
@@ -187,20 +189,65 @@ class Registry:
         org, _, name = manifest.source.repo.partition("/")
         return Path(self.data_dir) / "models" / f"{org}__{name}"
 
+    _WEIGHT_EXTS = {".safetensors", ".bin", ".pt", ".pth", ".gguf", ".ggml"}
+
+    def weights_info(self, manifest: Manifest) -> dict:
+        """Return {"present": bool, "size_mb": int|None} in one walk."""
+        d = self.weights_dir(manifest)
+        if not d.is_dir():
+            return {"present": False, "size_mb": None}
+        total = 0
+        found = False
+        try:
+            for root, dirs, files in os.walk(d):
+                dirs[:] = [dd for dd in dirs if not dd.startswith(".")]
+                for f in files:
+                    if any(f.endswith(ext) for ext in self._WEIGHT_EXTS):
+                        found = True
+                        try:
+                            total += os.path.getsize(os.path.join(root, f))
+                        except OSError:
+                            pass
+        except OSError:
+            return {"present": False, "size_mb": None}
+        size_mb = int(total / (1024 * 1024)) if total > 0 else None
+        return {"present": found, "size_mb": size_mb}
+
     def weights_present(self, manifest: Manifest) -> bool:
+        return self.weights_info(manifest)["present"]
+
+    def weights_size_mb(self, manifest: Manifest) -> int | None:
+        return self.weights_info(manifest)["size_mb"]
+
+    def delete_weights(self, manifest: Manifest) -> bool:
+        """Delete downloaded weights for a manifest. Returns True if deleted."""
+        import shutil
         d = self.weights_dir(manifest)
         if not d.is_dir():
             return False
         try:
-            # Must find actual model weight files, not just HF cache metadata.
-            # HF cache trees land in .cache/ subdirs — ignore them.
-            _WEIGHT_EXTS = {".safetensors", ".bin", ".pt", ".pth", ".gguf", ".ggml"}
-            for root, dirs, files in os.walk(d):
-                # Skip hidden dirs like .cache
+            shutil.rmtree(d)
+            log.info("deleted weights at %s", d)
+            return True
+        except OSError as exc:
+            log.warning("failed to delete weights at %s: %s", d, exc)
+            return False
+
+    def total_weights_size_mb(self) -> int:
+        """Total size of all downloaded model weights in MB."""
+        models_dir = Path(self.data_dir) / "models"
+        if not models_dir.is_dir():
+            return 0
+        total = 0
+        try:
+            for root, dirs, files in os.walk(models_dir):
                 dirs[:] = [dd for dd in dirs if not dd.startswith(".")]
                 for f in files:
-                    if any(f.endswith(ext) for ext in _WEIGHT_EXTS):
-                        return True
-            return False
+                    if any(f.endswith(ext) for ext in self._WEIGHT_EXTS):
+                        try:
+                            total += os.path.getsize(os.path.join(root, f))
+                        except OSError:
+                            pass
         except OSError:
-            return False
+            pass
+        return int(total / (1024 * 1024))

@@ -2,21 +2,39 @@
 
 The exact nvidia-smi command is mandated by §8.3 — no pynvml, no gpustat.
 Counters are in-memory only; reset on restart is intentional, not an oversight.
+
+GPU info is cached with a configurable TTL to avoid spawning nvidia-smi
+on every dashboard poll (default 5 s).
 """
 from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Optional, Tuple
 
 log = logging.getLogger("forge.stats")
 
+# ---- GPU info cache ----
 
-async def query_gpu_info() -> dict:
+_gpu_cache_time: float = 0.0
+_gpu_cache_data: dict = {}
+_GPU_CACHE_TTL: float = 5.0  # seconds
+
+
+async def query_gpu_info(ttl: float = _GPU_CACHE_TTL) -> dict:
     """Return GPU info dict; empty dict if nvidia-smi unavailable.
+
+    Results are cached for *ttl* seconds so the dashboard's 3-second
+    poll cycle does not fork nvidia-smi on every tick.
 
     Keys: vram_used_mb, vram_total_mb, gpu_utilization_pct, gpu_temp_c, gpu_name
     """
+    global _gpu_cache_time, _gpu_cache_data
+    now = time.monotonic()
+    if now - _gpu_cache_time < ttl:
+        return _gpu_cache_data
+
     try:
         proc = await asyncio.create_subprocess_exec(
             "nvidia-smi",
@@ -33,13 +51,16 @@ async def query_gpu_info() -> dict:
         if not lines:
             return {}
         parts = [p.strip() for p in lines[0].split(",")]
-        return {
+        data = {
             "vram_used_mb": int(parts[0]),
             "vram_total_mb": int(parts[1]),
             "gpu_utilization_pct": int(parts[2]),
             "gpu_temp_c": int(parts[3]),
             "gpu_name": parts[4] if len(parts) > 4 else None,
         }
+        _gpu_cache_time = now
+        _gpu_cache_data = data
+        return data
     except Exception as exc:
         log.debug("nvidia-smi unavailable: %s", exc)
         return {}

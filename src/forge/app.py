@@ -22,6 +22,7 @@ from forge.config import ForgeConfig, load_config
 from forge.lifecycle import LifecycleManager
 from forge.registry import Registry
 from forge.stats import RequestCounter
+from forge.admin_routes import load_persisted_api_key
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -45,6 +46,12 @@ def create_app(cfg: ForgeConfig | None = None) -> FastAPI:
     registry = Registry(cfg.data_dir)
     counter = RequestCounter()
     lifecycle = LifecycleManager(cfg, registry, counter)
+
+    # Load persisted API key (if no env-var key is set)
+    if not cfg.api_key:
+        persisted = load_persisted_api_key(cfg)
+        if persisted:
+            cfg.api_key = persisted
 
     app.state.config = cfg
     app.state.registry = registry
@@ -73,6 +80,8 @@ def create_app(cfg: ForgeConfig | None = None) -> FastAPI:
     @app.on_event("shutdown")
     async def _shutdown():
         await lifecycle.stop_background()
+        from forge.proxy import close_shared_client
+        await close_shared_client()
 
     @app.middleware("http")
     async def admin_auth(request, call_next):
