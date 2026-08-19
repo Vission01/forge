@@ -423,7 +423,7 @@ async function refreshRegistry(){
     // Pull/Del Weights toggle: if downloaded show "Del Weights" (danger), else "Pull Weights"
     let weightsBtn = "";
     if (m.downloaded && !isActive) {
-      weightsBtn = "<button data-act='delweights' data-alias='"+esc(m.alias)+"' class='danger sm'>Del Weights</button>";
+      weightsBtn = "<button data-act='delweights' data-alias='"+esc(m.alias)+"' class='danger'>Del Weights</button>";
     } else if (!m.downloaded) {
       weightsBtn = "<button data-act='pull' data-alias='"+esc(m.alias)+"'>Pull Weights</button>";
     }
