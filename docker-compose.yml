@@ -19,10 +19,21 @@ services:
     volumes:
       - forge-data:/data     # registry, state, model weights (survives rebuilds)
     restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.forge.rule=Host(`forge.cathynchris.com`)
+      - traefik.http.routers.forge.entrypoints=websecure
+      - traefik.http.routers.forge.tls=true
+      - traefik.http.services.forge.loadbalancer.server.port=9090
+      # SSE streaming needs long timeouts — model thinking can pause output for minutes
+      - traefik.http.services.forge.loadbalancer.responseforwarding.flushinterval=1ms
+      - traefik.http.middlewares.forge-timeout.buffering.maxResponseBodyBytes=0
+      - traefik.http.routers.forge.middlewares=forge-timeout
     networks:
       - default
       - ai-network
       - n8n-custom_n8n-network
+      - proxy
     # vLLM needs a GPU inside the container. Uncomment the block below and
     # make sure the host is running nvidia-container-toolkit.
     deploy:
@@ -40,4 +51,6 @@ networks:
   ai-network:
     external: true
   n8n-custom_n8n-network:
+    external: true
+  proxy:
     external: true
