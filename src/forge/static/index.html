@@ -420,6 +420,13 @@ async function refreshRegistry(){
       actionBtn = "<button data-act='activate' data-alias='"+esc(m.alias)+"'>Activate</button>";
     }
     const sizeDisplay = fmtMb(m.size_mb);
+    // Pull/Del Weights toggle: if downloaded show "Del Weights" (danger), else "Pull Weights"
+    let weightsBtn = "";
+    if (m.downloaded && !isActive) {
+      weightsBtn = "<button data-act='delweights' data-alias='"+esc(m.alias)+"' class='danger sm'>Del Weights</button>";
+    } else if (!m.downloaded) {
+      weightsBtn = "<button data-act='pull' data-alias='"+esc(m.alias)+"'>Pull Weights</button>";
+    }
     tr.innerHTML =
       "<td><code>"+esc(m.alias)+"</code></td>"+
       "<td><code>"+esc(m.served_model_name)+"</code></td>"+
@@ -429,9 +436,8 @@ async function refreshRegistry(){
       "<td><input type='number' min='1' step='1' data-alias='"+esc(m.alias)+"' data-field='idle' value='"+(m.idle_timeout_seconds/60)+"' style='width:60px;text-align:center'> min</td>"+
       "<td class='actions'>"+
         actionBtn+
-        "<button data-act='edit' data-alias='"+esc(m.alias)+"' title='Edit manifest'>&#9998;</button>"+
-        "<button data-act='pull' data-alias='"+esc(m.alias)+"'>Pull</button>"+
-        (m.downloaded && !isActive ? "<button data-act='delweights' data-alias='"+esc(m.alias)+"' class='danger sm' title='Delete downloaded weights'>Del Weights</button>" : "")+
+        "<button data-act='edit' data-alias='"+esc(m.alias)+"' title='Edit manifest'>Edit</button>"+
+        weightsBtn+
         "<button data-act='delete' data-alias='"+esc(m.alias)+"'>Delete</button>"+
       "</td>";
     body.appendChild(tr);
