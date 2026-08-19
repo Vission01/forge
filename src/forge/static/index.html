@@ -90,21 +90,14 @@ input:disabled{opacity:.6;cursor:not-allowed}
 .modal .btn-row button{min-width:80px}
 .modal .error-msg{color:var(--err);font-size:13px;margin-top:8px;display:none}
 
-/* Storage section */
-.storage-total{font-size:28px;font-weight:700;color:var(--fg);margin-bottom:6px}
-.storage-total .unit{font-size:16px;font-weight:400;color:var(--dim)}
-.storage-stacked-bar{display:flex;height:18px;border-radius:6px;overflow:hidden;
-  background:var(--panel2);margin-bottom:16px;gap:1px}
-.storage-stacked-bar .seg{height:100%;min-width:4px;transition:width .3s}
-.storage-model-list{display:grid;gap:8px}
-.storage-model-row{display:flex;align-items:center;gap:12px;font-size:13px}
-.storage-model-row .name{min-width:160px;font-weight:500}
-.storage-model-row .size{min-width:70px;color:var(--dim);text-align:right}
-.storage-model-row .bar-track{flex:1;height:8px;background:var(--panel2);border-radius:4px;overflow:hidden}
-.storage-model-row .bar-fill{height:100%;border-radius:4px;transition:width .3s}
-.storage-model-row .label-active{font-size:11px;color:var(--ok);font-weight:600;
-  padding:1px 8px;border:1px solid var(--ok);border-radius:999px}
-.storage-model-row button{flex-shrink:0}
+/* Storage donut in header */
+.storage-donut{display:flex;align-items:center;gap:8px;margin-left:12px;cursor:default}
+.storage-donut svg{width:32px;height:32px;transform:rotate(-90deg)}
+.storage-donut .track{fill:none;stroke:var(--panel2);stroke-width:4}
+.storage-donut .value{fill:none;stroke:var(--accent);stroke-width:4;stroke-linecap:round;
+  transition:stroke-dashoffset .5s ease}
+.storage-donut .label{font-size:11px;color:var(--dim);line-height:1.2}
+.storage-donut .label strong{display:block;font-size:13px;color:var(--fg);font-weight:600}
 
 /* Catalog section */
 .catalog-filters{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
@@ -138,6 +131,13 @@ input:disabled{opacity:.6;cursor:not-allowed}
   <h1>FORGE</h1>
   <span class="sub">vLLM gateway &middot; manage models without touching the CLI</span>
   <span id="versionInfo" class="hint" style="margin-left:auto"></span>
+  <div class="storage-donut" id="storageDonut" style="display:none" title="Total model weight storage">
+    <svg viewBox="0 0 36 36">
+      <circle class="track" cx="18" cy="18" r="14"></circle>
+      <circle class="value" id="donutArc" cx="18" cy="18" r="14" stroke-dasharray="87.96" stroke-dashoffset="87.96"></circle>
+    </svg>
+    <div class="label"><strong id="donutLabel">—</strong>storage</div>
+  </div>
 </header>
 <main>
   <div id="banner" class="banner"></div>
@@ -195,14 +195,6 @@ input:disabled{opacity:.6;cursor:not-allowed}
       <tbody id="regBody"><tr><td colspan="7" class="hint">loading&hellip;</td></tr></tbody>
     </table>
     <div id="regErr" class="hint" style="margin-top:8px"></div>
-  </section>
-
-  <!-- Storage -->
-  <section class="card" id="storageCard" style="display:none">
-    <h2>Storage</h2>
-    <div id="storageContent">
-      <span class="hint">loading&hellip;</span>
-    </div>
   </section>
 
   <!-- Model Catalog -->
@@ -327,12 +319,6 @@ function chipEl(state){
   return c;
 }
 
-// Storage color palette
-const STORAGE_COLORS = [
-  "#4f8cff","#38c172","#f5a623","#e5534b","#b99aff",
-  "#ff6b9d","#4fd1c5","#f0c040","#7fc4ff","#ff9f43"
-];
-
 // ---- Unified refresh ---- //
 async function refreshDashboard(){
   try {
@@ -445,6 +431,7 @@ async function refreshRegistry(){
         actionBtn+
         "<button data-act='edit' data-alias='"+esc(m.alias)+"' title='Edit manifest'>&#9998;</button>"+
         "<button data-act='pull' data-alias='"+esc(m.alias)+"'>Pull</button>"+
+        (m.downloaded && !isActive ? "<button data-act='delweights' data-alias='"+esc(m.alias)+"' class='danger sm' title='Delete downloaded weights'>Del Weights</button>" : "")+
         "<button data-act='delete' data-alias='"+esc(m.alias)+"'>Delete</button>"+
       "</td>";
     body.appendChild(tr);
@@ -474,78 +461,40 @@ async function refreshRegistry(){
       if (act==="pull"){ b.disabled=true; b.textContent="pulling\u2026";
         await api("/admin/v1/pull",{method:"POST",body:{alias}});
         refreshDashboard(); refreshRegistry(); }
+      if (act==="delweights"){
+        if (!confirm("Delete downloaded weights for \""+alias+"\"? You will need to re-download them to use this model.")) return;
+        b.disabled=true; b.textContent="deleting\u2026";
+        await api("/admin/v1/storage/"+encodeURIComponent(alias),{method:"DELETE"});
+        refreshRegistry(); refreshStorage(); }
       if (act==="edit"){ openEditModal(alias); }
     };
   });
 }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
-// ---- Storage ---- //
+// ---- Storage donut ---- //
 async function refreshStorage(){
   try {
     const r = await api("/admin/v1/storage");
-    if (r.status === 401 || r.status !== 200){
-      $("storageCard").style.display = "none";
-      return;
-    }
+    if (r.status !== 200){ $("storageDonut").style.display = "none"; return; }
     const d = r.data || {};
-    const models = d.models || [];
     const totalGb = d.total_size_gb ?? (d.total_size_mb ? (d.total_size_mb/1024).toFixed(1) : 0);
-    const totalMb = d.total_size_mb || 0;
-    $("storageCard").style.display = "";
-
-    let html = "";
-    // Total
-    html += '<div class="storage-total">' + esc(Number(totalGb).toFixed(1)) + ' <span class="unit">GB used</span></div>';
-
-    // Stacked bar
-    if (models.length && totalMb > 0){
-      html += '<div class="storage-stacked-bar">';
-      models.forEach((m, i)=>{
-        const pct = Math.max(0.5, (m.size_mb||0)/totalMb*100);
-        const color = STORAGE_COLORS[i % STORAGE_COLORS.length];
-        html += '<div class="seg" style="width:'+pct.toFixed(1)+'%;background:'+color+'" title="'+esc(m.alias)+': '+fmtMb(m.size_mb)+'"></div>';
-      });
-      html += '</div>';
-    }
-
-    // Model list
-    html += '<div class="storage-model-list">';
-    if (!models.length){
-      html += '<span class="hint">No downloaded models.</span>';
-    }
-    models.forEach((m, i)=>{
-      const color = STORAGE_COLORS[i % STORAGE_COLORS.length];
-      const pct = totalMb > 0 ? ((m.size_mb||0)/totalMb*100) : 0;
-      html += '<div class="storage-model-row">';
-      html += '<span class="name"><code>'+esc(m.alias)+'</code></span>';
-      html += '<span class="size">'+fmtMb(m.size_mb)+'</span>';
-      html += '<span class="bar-track"><span class="bar-fill" style="width:'+pct.toFixed(1)+'%;background:'+color+'"></span></span>';
-      if (m.active){
-        html += '<span class="label-active">active</span>';
-        html += '<button class="sm" disabled title="Cannot delete weights for the active model">Delete Weights</button>';
-      } else {
-        html += '<button class="sm danger" data-storage-delete="'+esc(m.alias)+'">Delete Weights</button>';
-      }
-      html += '</div>';
-    });
-    html += '</div>';
-
-    $("storageContent").innerHTML = html;
-
-    // Bind delete buttons
-    $("storageContent").querySelectorAll("button[data-storage-delete]").forEach(btn=>{
-      btn.onclick = async ()=>{
-        const alias = btn.dataset.storageDelete;
-        if (!confirm("Delete downloaded weights for \""+alias+"\"? You will need to re-download them to use this model.")) return;
-        btn.disabled = true; btn.textContent = "deleting\u2026";
-        await api("/admin/v1/storage/"+encodeURIComponent(alias),{method:"DELETE"});
-        refreshStorage();
-        refreshRegistry();
-      };
-    });
+    $("storageDonut").style.display = "flex";
+    $("donutLabel").textContent = Number(totalGb).toFixed(1) + " GB";
+    // Donut: circumference = 2*PI*14 ≈ 87.96
+    // Assume 200 GB disk as reference max, or scale to always show something
+    const maxGb = 200;
+    const pct = Math.min(1, Number(totalGb) / maxGb);
+    const circ = 87.96;
+    $("donutArc").setAttribute("stroke-dashoffset", (circ * (1 - pct)).toFixed(2));
+    // Color: green < 50%, accent < 80%, warn < 95%, red >= 95%
+    const arc = $("donutArc");
+    if (pct >= 0.95) arc.style.stroke = "var(--err)";
+    else if (pct >= 0.80) arc.style.stroke = "var(--warn)";
+    else if (pct >= 0.50) arc.style.stroke = "var(--accent)";
+    else arc.style.stroke = "var(--ok)";
   } catch(e){
-    $("storageCard").style.display = "none";
+    $("storageDonut").style.display = "none";
   }
 }
 
