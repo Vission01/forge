@@ -86,7 +86,7 @@ class Registry:
     # ---- loading ---- #
 
     def _stem(self, path: Path) -> str:
-        return path.name.split(".")[0]  # filename stem without .yaml
+        return path.stem  # filename without .yaml extension
 
     def load(self, path: Path) -> Manifest:
         raw = yaml.safe_load(path.read_text())

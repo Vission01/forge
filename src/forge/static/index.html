@@ -99,31 +99,35 @@ input:disabled{opacity:.6;cursor:not-allowed}
 .storage-donut .label{font-size:11px;color:var(--dim);line-height:1.2}
 .storage-donut .label strong{display:block;font-size:13px;color:var(--fg);font-weight:600}
 
-/* Catalog section */
-.catalog-filters{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
-.catalog-filters button{border-radius:999px;padding:4px 14px;font-size:12px;font-weight:500}
-.catalog-filters button.active{background:var(--accent);border-color:var(--accent);color:#fff}
-.catalog-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-@media(max-width:1100px){.catalog-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:700px){.catalog-grid{grid-template-columns:1fr}}
-.catalog-card{background:var(--panel2);border:1px solid var(--border);border-radius:10px;
+/* Browse HuggingFace section */
+.hf-toolbar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.hf-toolbar input{width:auto;flex:1;min-width:180px}
+.hf-toolbar .sort-group{display:flex;gap:0;border:1px solid var(--border);border-radius:7px;overflow:hidden}
+.hf-toolbar .sort-group button{border:none;border-radius:0;padding:6px 12px;font-size:12px;
+  font-weight:500;border-right:1px solid var(--border)}
+.hf-toolbar .sort-group button:last-child{border-right:none}
+.hf-toolbar .sort-group button.active{background:var(--accent);color:#fff}
+.hf-toolbar .sort-group button:hover:not(.active){background:var(--panel)}
+.hf-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:1100px){.hf-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:700px){.hf-grid{grid-template-columns:1fr}}
+.hf-card{background:var(--panel2);border:1px solid var(--border);border-radius:10px;
   padding:16px;transition:border-color .2s,box-shadow .2s;display:flex;flex-direction:column}
-.catalog-card:hover{border-color:var(--accent);box-shadow:0 0 0 1px rgba(79,140,255,.15)}
-.catalog-card .cc-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
-.catalog-card .cc-name{font-size:15px;font-weight:600}
-.catalog-card .cc-badge{display:inline-block;padding:2px 7px;border-radius:5px;
-  font-size:11px;font-weight:600;background:#232838;color:var(--dim);border:1px solid var(--border)}
-.catalog-card .cc-badge.vram{background:#1a2035;color:var(--accent);border-color:#2a3a60}
-.catalog-card .cc-badge.quant{background:#201a2a;color:#b99aff;border-color:#3a2a55}
-.catalog-card .cc-desc{font-size:13px;color:var(--dim);margin-bottom:10px;flex:1;
-  line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.catalog-card .cc-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
-.catalog-card .cc-tag{display:inline-block;padding:1px 7px;border-radius:999px;
+.hf-card:hover{border-color:var(--accent);box-shadow:0 0 0 1px rgba(79,140,255,.15)}
+.hf-card .hf-repo{font-size:14px;font-weight:600;margin-bottom:4px;word-break:break-all}
+.hf-card .hf-repo a{color:var(--fg)}
+.hf-card .hf-repo a:hover{color:var(--accent)}
+.hf-card .hf-meta{display:flex;gap:12px;font-size:12px;color:var(--dim);margin-bottom:8px;flex-wrap:wrap}
+.hf-card .hf-meta span{display:inline-flex;align-items:center;gap:3px}
+.hf-card .hf-tags{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px;min-height:0}
+.hf-card .hf-tag{display:inline-block;padding:1px 6px;border-radius:999px;
   font-size:10px;background:#1a2030;color:var(--dim);border:1px solid var(--border)}
-.catalog-card .cc-actions{margin-top:auto}
-.catalog-card .cc-added{display:inline-flex;align-items:center;gap:4px;
+.hf-card .hf-actions{margin-top:auto;display:flex;gap:6px;align-items:center}
+.hf-card .hf-added{display:inline-flex;align-items:center;gap:4px;
   padding:5px 14px;border-radius:7px;font-size:12px;font-weight:600;
   background:#0e2a1c;color:var(--ok);border:1px solid #1c5a38;cursor:default}
+.hf-load-more{text-align:center;margin-top:14px}
+.hf-empty{text-align:center;padding:30px;color:var(--dim);font-size:13px}
 </style>
 </head>
 <body>
@@ -197,17 +201,25 @@ input:disabled{opacity:.6;cursor:not-allowed}
     <div id="regErr" class="hint" style="margin-top:8px"></div>
   </section>
 
-  <!-- Model Catalog -->
-  <section class="card" id="catalogCard" style="display:none">
-    <h2>Model Catalog</h2>
-    <div class="catalog-filters" id="catalogFilters">
-      <button class="sm active" data-cat="all">All</button>
-      <button class="sm" data-cat="general">General</button>
-      <button class="sm" data-cat="coding">Coding</button>
-      <button class="sm" data-cat="reasoning">Reasoning</button>
+  <!-- Browse HuggingFace -->
+  <section class="card" id="hfBrowseCard">
+    <h2>Browse HuggingFace</h2>
+    <div class="hf-toolbar" id="hfToolbar">
+      <input id="hfSearch" placeholder="Search models (e.g. NVFP4, Qwen3.6, coding)&hellip;" value="NVFP4">
+      <input id="hfAuthor" placeholder="Author (optional)" value="unsloth" style="width:140px;flex:none">
+      <div class="sort-group" id="hfSortGroup">
+        <button data-sort="lastModified" class="active" title="Most recently updated">Newest</button>
+        <button data-sort="trending" title="Trending right now">Trending</button>
+        <button data-sort="downloads" title="Most downloaded all-time">Popular</button>
+        <button data-sort="likes" title="Most liked">Likes</button>
+      </div>
+      <button id="hfSearchBtn" class="sm primary">Search</button>
     </div>
-    <div class="catalog-grid" id="catalogGrid">
-      <span class="hint">loading&hellip;</span>
+    <div class="hf-grid" id="hfGrid">
+      <span class="hint">Enter a search term and click Search, or press Enter.</span>
+    </div>
+    <div class="hf-load-more" id="hfLoadMore" style="display:none">
+      <button id="hfMoreBtn" class="sm">Load More</button>
     </div>
   </section>
 </main>
@@ -318,6 +330,16 @@ function chipEl(state){
   c.textContent=state||"IDLE";
   return c;
 }
+function fmtCount(n){ if (n===null||n===undefined) return "0";
+  if (n>=1e6) return (n/1e6).toFixed(1)+"M";
+  if (n>=1e3) return (n/1e3).toFixed(1)+"k";
+  return String(n); }
+function timeAgo(dateStr){ if (!dateStr) return "";
+  const d=new Date(dateStr), now=new Date(), diff=Math.floor((now-d)/1000);
+  if (diff<60) return "just now"; if (diff<3600) return Math.floor(diff/60)+"m ago";
+  if (diff<86400) return Math.floor(diff/3600)+"h ago";
+  if (diff<2592000) return Math.floor(diff/86400)+"d ago";
+  return Math.floor(diff/2592000)+"mo ago"; }
 
 // ---- Unified refresh ---- //
 async function refreshDashboard(){
@@ -390,6 +412,7 @@ async function refreshDashboard(){
 }
 
 // ---- Registry ---- //
+let _registeredRepos = new Set();
 async function refreshRegistry(){
   const r = await api("/admin/v1/registry");
   const sr = await api("/admin/v1/status");
@@ -404,6 +427,8 @@ async function refreshRegistry(){
   }
   $("regErr").textContent = "";
   const list = r.data || [];
+  // Track registered repos for HF browse "Already Added" badges
+  _registeredRepos = new Set(list.map(m => m.source.repo));
   if (!list.length){ body.innerHTML = '<tr><td colspan="7" class="hint">no manifests yet \u2014 click + Add Model above</td></tr>'; return; }
   body.innerHTML = "";
   for (const m of list){
@@ -504,101 +529,209 @@ async function refreshStorage(){
   }
 }
 
-// ---- Catalog ---- //
-let _catalogData = [];
-let _catalogFilter = "all";
+// ---- Browse HuggingFace ---- //
+const HF_API = "https://huggingface.co/api/models";
+const HF_LIMIT = 18;
+let _hfResults = [];
+let _hfSort = "lastModified";
+let _hfHasMore = false;
 
-async function refreshCatalog(){
-  try {
-    const r = await api("/admin/v1/catalog");
-    if (r.status === 401 || r.status !== 200){
-      $("catalogCard").style.display = "none";
-      return;
-    }
-    _catalogData = r.data || [];
-    $("catalogCard").style.display = "";
-    renderCatalog();
-  } catch(e){
-    $("catalogCard").style.display = "none";
+// Derive alias from repo ID: "unsloth/Qwen3.8-27B-NVFP4" -> "qwen3.8-27b-nvfp4"
+function repoToAlias(repo){
+  const name = repo.includes("/") ? repo.split("/").pop() : repo;
+  return name.toLowerCase().replace(/[^a-z0-9._-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+}
+// Derive served name: "unsloth/Qwen3.8-27B-NVFP4" -> "qwen3.8-27b"
+// Strip common quantization suffixes
+function repoToServedName(repo){
+  const name = repo.includes("/") ? repo.split("/").pop() : repo;
+  return name
+    .replace(/-?(NVFP4|GGUF|GPTQ|AWQ|EXL2|FP8|BNB|NF4|INT4|INT8|Instruct)$/gi, "")
+    .replace(/-+$/, "")
+    .toLowerCase();
+}
+// Detect quantization from model ID or tags
+function detectQuant(modelId, tags){
+  const id = modelId.toUpperCase();
+  if (id.includes("NVFP4")) return "NVFP4";
+  if (id.includes("GPTQ")) return "GPTQ";
+  if (id.includes("AWQ")) return "AWQ";
+  if (id.includes("GGUF")) return "GGUF";
+  if (id.includes("EXL2")) return "EXL2";
+  if (id.includes("FP8")) return "FP8";
+  if (id.includes("BNB") || id.includes("NF4")) return "NF4";
+  if (id.includes("INT4")) return "INT4";
+  if (id.includes("INT8")) return "INT8";
+  if (tags && tags.includes("quantized")) return "quantized";
+  return null;
+}
+// HF tags we care about showing (skip infra/format tags)
+const HF_SKIP_TAGS = new Set(["transformers","safetensors","pytorch","text-generation","text-generation-inference",
+  "conversational","endpoints_compatible","region:us","autotrain_compatible","4-bit","8-bit"]);
+// Estimate disk size from safetensors parameter breakdown
+function estimateSizeGB(m){
+  const sf = m.safetensors;
+  if (!sf || !sf.parameters) return null;
+  const p = sf.parameters;
+  // Bytes per dtype: F32=4, BF16/F16=2, F8_E4M3=1, U8/I8=1, I32/U32=4, I16/U16=2
+  const bytesPerType = {F32:4,BF16:2,F16:2,F8_E4M3:1,U8:1,I8:1,I32:4,U32:4,I16:2,U16:2};
+  let total = 0;
+  for (const [dtype, count] of Object.entries(p)){
+    total += count * (bytesPerType[dtype] || 1);
   }
+  // Add ~8% overhead for config, tokenizer, non-tensor files
+  total *= 1.08;
+  const gb = total / 1e9;
+  return gb >= 0.1 ? gb : null;
 }
 
-function renderCatalog(){
-  const grid = $("catalogGrid");
-  const filtered = _catalogFilter === "all"
-    ? _catalogData
-    : _catalogData.filter(m => (m.category||"").toLowerCase() === _catalogFilter);
+async function searchHF(append){
+  const q = $("hfSearch").value.trim();
+  const author = $("hfAuthor").value.trim();
+  if (!q && !author){ $("hfGrid").innerHTML = '<div class="hf-empty">Enter a search term or author.</div>'; return; }
+  const params = new URLSearchParams();
+  if (q) params.set("search", q);
+  if (author) params.set("author", author);
+  params.set("sort", _hfSort);
+  if (_hfSort !== "trending") params.set("direction", "-1");
+  params.set("limit", String(HF_LIMIT));
+  params.set("filter", "text-generation");
+  params.append("expand[]", "safetensors");
+  if (append) params.set("skip", String(_hfResults.length));
 
-  if (!filtered.length){
-    grid.innerHTML = '<span class="hint">No models in this category.</span>';
+  if (!append){
+    $("hfGrid").innerHTML = '<div class="hf-empty">Searching HuggingFace&hellip;</div>';
+    $("hfLoadMore").style.display = "none";
+  }
+  $("hfSearchBtn").disabled = true;
+  try {
+    const resp = await fetch(HF_API + "?" + params.toString());
+    if (!resp.ok) throw new Error("HF API " + resp.status);
+    const models = await resp.json();
+    if (append){
+      _hfResults = _hfResults.concat(models);
+    } else {
+      _hfResults = models;
+    }
+    _hfHasMore = models.length >= HF_LIMIT;
+    renderHFResults(append);
+  } catch(e){
+    if (!append) $("hfGrid").innerHTML = '<div class="hf-empty">Failed to search HuggingFace: '+esc(String(e))+'</div>';
+  }
+  $("hfSearchBtn").disabled = false;
+}
+
+function renderHFResults(append){
+  const grid = $("hfGrid");
+  if (!_hfResults.length){
+    grid.innerHTML = '<div class="hf-empty">No models found. Try different search terms.</div>';
+    $("hfLoadMore").style.display = "none";
     return;
   }
+  if (!append) grid.innerHTML = "";
+  const startIdx = append ? (_hfResults.length - (HF_LIMIT)) : 0;
+  const slice = _hfResults.slice(Math.max(0, startIdx));
 
-  grid.innerHTML = "";
-  for (const m of filtered){
+  for (const m of slice){
+    const repo = m.modelId || m.id;
     const card = document.createElement("div");
-    card.className = "catalog-card";
+    card.className = "hf-card";
 
-    let badges = '<span class="cc-badge">'+esc(m.params||"")+'</span>';
-    if (m.vram_gb != null) badges += '<span class="cc-badge vram">~'+m.vram_gb+' GB</span>';
-    if (m.quantization) badges += '<span class="cc-badge quant">'+esc(m.quantization)+'</span>';
+    // Metadata line
+    const quant = detectQuant(repo, m.tags);
+    const sizeGb = estimateSizeGB(m);
+    let metaHtml = '<div class="hf-meta">';
+    if (sizeGb != null) metaHtml += '<span title="Estimated disk size">\ud83d\udcc0 ~'+sizeGb.toFixed(1)+' GB</span>';
+    metaHtml += '<span title="Downloads">\u2b07 '+fmtCount(m.downloads)+'</span>';
+    metaHtml += '<span title="Likes">\u2764 '+fmtCount(m.likes)+'</span>';
+    if (m.lastModified) metaHtml += '<span title="'+esc(m.lastModified)+'">'+timeAgo(m.lastModified)+'</span>';
+    metaHtml += '</div>';
 
-    let tags = "";
-    if (m.tags && m.tags.length){
-      tags = '<div class="cc-tags">' + m.tags.map(t=>'<span class="cc-tag">'+esc(t)+'</span>').join("") + '</div>';
+    // Badges
+    let badgeHtml = '';
+    if (quant) badgeHtml += '<span class="cc-badge quant">'+esc(quant)+'</span>';
+
+    // Tags (filtered)
+    const showTags = (m.tags||[]).filter(t => !HF_SKIP_TAGS.has(t)).slice(0, 6);
+    let tagsHtml = '';
+    if (showTags.length){
+      tagsHtml = '<div class="hf-tags">' + showTags.map(t=>'<span class="hf-tag">'+esc(t)+'</span>').join("") + '</div>';
     }
 
+    // Action
+    const isRegistered = _registeredRepos.has(repo);
     let actionHtml;
-    if (m.registered){
-      actionHtml = '<span class="cc-added">Already Added &#10003;</span>';
+    if (isRegistered){
+      actionHtml = '<span class="hf-added">Already Added &#10003;</span>';
     } else {
-      actionHtml = '<button class="sm primary" data-catalog-add="'+esc(m.id)+'">Add to Registry</button>';
+      actionHtml = '<button class="sm primary" data-hf-add="'+esc(repo)+'">Add to Registry</button>';
     }
 
     card.innerHTML =
-      '<div class="cc-header"><span class="cc-name">'+esc(m.name)+'</span>'+badges+'</div>'+
-      '<div class="cc-desc">'+esc(m.description||"")+'</div>'+
-      tags+
-      '<div class="cc-actions">'+actionHtml+'</div>';
+      '<div class="hf-repo"><a href="https://huggingface.co/'+esc(repo)+'" target="_blank" rel="noopener">'+esc(repo)+'</a> '+badgeHtml+'</div>'+
+      metaHtml+
+      tagsHtml+
+      '<div class="hf-actions">'+actionHtml+'</div>';
 
     grid.appendChild(card);
   }
 
   // Bind add buttons
-  grid.querySelectorAll("button[data-catalog-add]").forEach(btn=>{
-    btn.onclick = async ()=>{
-      const id = btn.dataset.catalogAdd;
-      const m = _catalogData.find(x => x.id === id);
-      if (!m) return;
-      btn.disabled = true; btn.textContent = "adding\u2026";
-      const manifest = {
-        alias: m.suggested_alias || m.id,
-        source: {repo: m.repo, file: null},
-        served_model_name: m.suggested_served_name || m.name,
-        engine_args: m.engine_args || {},
-        idle_timeout_seconds: 600
-      };
-      const r = await api("/admin/v1/registry",{method:"POST",body:manifest});
-      if (r.status === 201 || r.status === 200){
-        refreshCatalog();
-        refreshRegistry();
-      } else {
-        btn.disabled = false; btn.textContent = "Add to Registry";
-        alert("Failed to add: " + ((r.data&&r.data.detail)||r.status));
-      }
-    };
+  grid.querySelectorAll("button[data-hf-add]").forEach(btn=>{
+    if (btn._bound) return;
+    btn._bound = true;
+    btn.onclick = ()=> openCreateModalFromHF(btn.dataset.hfAdd, btn);
+  });
+
+  $("hfLoadMore").style.display = _hfHasMore ? "" : "none";
+}
+
+function openCreateModalFromHF(repo, btn){
+  // Direct one-click add: POST to registry with sensible defaults
+  const alias = repoToAlias(repo);
+  const served = repoToServedName(repo);
+  const manifest = {
+    alias: alias,
+    source: {repo: repo, file: null},
+    served_model_name: served,
+    engine_args: {
+      "kv-cache-dtype": "fp8_e4m3",
+      "max-model-len": "65536",
+      "gpu-memory-utilization": "0.93",
+      "enforce-eager": "true",
+      "enable-auto-tool-choice": "true",
+      "tool-call-parser": "hermes"
+    },
+    idle_timeout_seconds: 600
+  };
+  btn.disabled = true; btn.textContent = "adding\u2026";
+  api("/admin/v1/registry",{method:"POST",body:manifest}).then(r=>{
+    if (r.status === 201 || r.status === 200){
+      _registeredRepos.add(repo);
+      btn.outerHTML = '<span class="hf-added">Added &#10003;</span>';
+      refreshRegistry();
+    } else {
+      btn.disabled = false; btn.textContent = "Add to Registry";
+      alert("Failed: " + ((r.data&&r.data.detail)||r.status));
+    }
   });
 }
 
-// Catalog filter buttons
-$("catalogFilters").addEventListener("click", (e)=>{
-  const btn = e.target.closest("button[data-cat]");
+// Sort group buttons
+$("hfSortGroup").addEventListener("click", (e)=>{
+  const btn = e.target.closest("button[data-sort]");
   if (!btn) return;
-  _catalogFilter = btn.dataset.cat;
-  $("catalogFilters").querySelectorAll("button").forEach(b=>b.classList.remove("active"));
+  _hfSort = btn.dataset.sort;
+  $("hfSortGroup").querySelectorAll("button").forEach(b=>b.classList.remove("active"));
   btn.classList.add("active");
-  renderCatalog();
+  searchHF(false);
 });
+
+// Search button + Enter key
+$("hfSearchBtn").onclick = ()=> searchHF(false);
+$("hfSearch").addEventListener("keydown", (e)=>{ if (e.key==="Enter") searchHF(false); });
+$("hfAuthor").addEventListener("keydown", (e)=>{ if (e.key==="Enter") searchHF(false); });
+$("hfMoreBtn").onclick = ()=> searchHF(true);
 
 // ---- API Key ---- //
 $("genKeyBtn").onclick = async ()=>{
@@ -704,7 +837,7 @@ async function saveModal(){
     const manifest = {alias, source:{repo,file}, served_model_name:served,
       engine_args:engineArgs, idle_timeout_seconds:idleMins*60};
     const r = await api("/admin/v1/registry", {method:"POST", body:manifest});
-    if (r.status === 201 || r.status === 200){ closeModal(); refreshRegistry(); refreshCatalog(); }
+    if (r.status === 201 || r.status === 200){ closeModal(); refreshRegistry(); }
     else { errEl.textContent = "Error: " + ((r.data&&r.data.detail)||r.status); errEl.style.display = "block"; }
   }
   $("modalSave").disabled = false;
@@ -739,7 +872,7 @@ $("saveCfg").onclick = ()=>{ saveCfg(); $("saveCfg").textContent="Saved!"; $("sa
 loadCfg(); saveCfg();
 
 async function refreshAll(){
-  await Promise.allSettled([refreshDashboard(), refreshRegistry(), refreshVersion(), refreshStorage(), refreshCatalog()]);
+  await Promise.allSettled([refreshDashboard(), refreshRegistry(), refreshVersion(), refreshStorage()]);
 }
 refreshAll();
 setInterval(refreshAll, 3000);
